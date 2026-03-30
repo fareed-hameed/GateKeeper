@@ -78,6 +78,38 @@ def api_trigger():
     })
 
 
+# ---------- API: Bypass (registered devices) ----------
+
+@bp.route("/api/bypass", methods=["POST"])
+def api_bypass():
+    cfg = current_app.config["GK"]
+    data = request.get_json(silent=True) or {}
+    fingerprint = (data.get("fingerprint") or "").strip()
+
+    if not fingerprint:
+        return jsonify({"ok": False, "error": "Device identification required"}), 400
+
+    if not db.is_admin_device(fingerprint):
+        return jsonify({"ok": False, "error": "Device not registered"}), 403
+
+    result = trigger_action(
+        cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
+    )
+
+    db.log_access(
+        fingerprint,
+        code_valid=True,
+        action_triggered=result["success"],
+        blocked_reason=None,
+    )
+
+    return jsonify({
+        "ok": result["success"],
+        "action_response": result["response"],
+        "error": result["error"],
+    })
+
+
 # ---------- API: Admin ----------
 
 @bp.route("/api/admin/check", methods=["POST"])

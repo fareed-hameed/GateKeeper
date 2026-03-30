@@ -8,11 +8,125 @@
     <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
 </head>
 <body>
+    <canvas id="bg-canvas"></canvas>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
     <script>
-        // Initialize FingerprintJS and store the visitor ID globally
+        // --- Animated Neural Network Background ---
+        (function() {
+            const c = document.getElementById('bg-canvas');
+            const ctx = c.getContext('2d');
+            let w, h, nodes = [], mouse = {x: -1000, y: -1000};
+
+            function resize() {
+                w = c.width = window.innerWidth;
+                h = c.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            document.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+            document.addEventListener('touchmove', e => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; });
+
+            const NODE_COUNT = Math.min(80, Math.floor((w * h) / 12000));
+            for (let i = 0; i < NODE_COUNT; i++) {
+                nodes.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    r: Math.random() * 2 + 1,
+                    pulse: Math.random() * Math.PI * 2,
+                });
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, w, h);
+
+                // Draw connections
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const dx = nodes[i].x - nodes[j].x;
+                        const dy = nodes[i].y - nodes[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 150) {
+                            const alpha = (1 - dist / 150) * 0.15;
+                            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.beginPath();
+                            ctx.moveTo(nodes[i].x, nodes[i].y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                // Draw nodes + mouse interaction
+                for (const n of nodes) {
+                    const dx = mouse.x - n.x;
+                    const dy = mouse.y - n.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    // Gentle repulsion from mouse
+                    if (dist < 200 && dist > 0) {
+                        n.vx -= (dx / dist) * 0.02;
+                        n.vy -= (dy / dist) * 0.02;
+                    }
+
+                    n.pulse += 0.02;
+                    const glow = 0.5 + Math.sin(n.pulse) * 0.3;
+
+                    // Node glow
+                    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 4);
+                    grad.addColorStop(0, `rgba(56, 189, 248, ${glow * 0.8})`);
+                    grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, n.r * 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Node core
+                    ctx.fillStyle = `rgba(129, 140, 248, ${glow})`;
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Move
+                    n.x += n.vx;
+                    n.y += n.vy;
+                    n.vx *= 0.999;
+                    n.vy *= 0.999;
+
+                    // Wrap
+                    if (n.x < -10) n.x = w + 10;
+                    if (n.x > w + 10) n.x = -10;
+                    if (n.y < -10) n.y = h + 10;
+                    if (n.y > h + 10) n.y = -10;
+                }
+
+                // Mouse highlight connections
+                if (mouse.x > 0) {
+                    for (const n of nodes) {
+                        const dx = mouse.x - n.x;
+                        const dy = mouse.y - n.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 200) {
+                            ctx.strokeStyle = `rgba(129, 140, 248, ${(1 - dist / 200) * 0.2})`;
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(mouse.x, mouse.y);
+                            ctx.lineTo(n.x, n.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                requestAnimationFrame(draw);
+            }
+            draw();
+        })();
+
+        // --- FingerprintJS ---
         window.gkFingerprint = null;
         FingerprintJS.load().then(fp => fp.get()).then(result => {
             window.gkFingerprint = result.visitorId;

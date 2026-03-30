@@ -3,12 +3,24 @@
 {% block title %}AEGIS Admin{% endblock %}
 
 {% block content %}
-<!-- Enrollment Screen (shown if device not enrolled) -->
+<!-- Enrollment Screen -->
 <div id="enrollScreen" class="card hidden">
     <div class="brand">
+        <div class="brand-shield">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z"
+                      stroke="url(#sg2)" stroke-width="2" fill="rgba(56,189,248,0.05)"/>
+                <path d="M32 20v12m0 4v2" stroke="url(#sg2)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="32" cy="40" r="2" fill="#38bdf8"/>
+                <defs><linearGradient id="sg2" x1="8" y1="4" x2="56" y2="52">
+                    <stop stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/>
+                </linearGradient></defs>
+            </svg>
+        </div>
         <h1>AEGIS</h1>
         <p class="brand-full">Admin Enrollment</p>
     </div>
+    <div class="scanner-line"></div>
     <p class="subtitle">Enter the master PIN to register this device</p>
     <form id="enrollForm" autocomplete="off">
         <input type="password" id="enrollPin" placeholder="Master PIN" required>
@@ -18,21 +30,31 @@
     <div id="enrollStatus" class="status hidden"></div>
 </div>
 
-<!-- Admin Dashboard (shown if device is enrolled) -->
+<!-- Admin Dashboard -->
 <div id="dashboard" class="card hidden">
     <div class="brand">
+        <div class="brand-shield">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z"
+                      stroke="url(#sg3)" stroke-width="2" fill="rgba(56,189,248,0.05)"/>
+                <path d="M22 32l7 7 13-13" stroke="url(#sg3)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs><linearGradient id="sg3" x1="8" y1="4" x2="56" y2="52">
+                    <stop stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/>
+                </linearGradient></defs>
+            </svg>
+        </div>
         <h1>AEGIS</h1>
-        <p class="brand-full">Admin Dashboard</p>
+        <p class="brand-full">Command Center</p>
     </div>
 
     <section class="section">
-        <h2>Today's Code</h2>
+        <h2>Today's Access Code</h2>
         <div id="dailyCode" class="daily-code">------</div>
-        <button id="copyCode" class="btn-secondary">Copy</button>
+        <button id="copyCode" class="btn-secondary">Copy Code</button>
     </section>
 
     <section class="section">
-        <h2>Configuration</h2>
+        <h2>System Configuration</h2>
         <div id="configDisplay" class="config-grid"></div>
     </section>
 
@@ -42,14 +64,20 @@
     </section>
 
     <section class="section">
-        <h2>Recent Activity</h2>
+        <h2>Activity Log</h2>
         <div id="logList" class="log-list"></div>
     </section>
 </div>
 
 <!-- Loading -->
 <div id="loading" class="card">
-    <p>Identifying device...</p>
+    <div class="brand">
+        <h1>AEGIS</h1>
+        <p class="brand-full">Identifying device...</p>
+    </div>
+    <div class="status-ring">
+        <span class="icon"></span>
+    </div>
 </div>
 {% endblock %}
 
@@ -84,7 +112,6 @@ async function checkEnrollment() {
     }
 }
 
-// Enrollment
 document.getElementById('enrollForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const pin = document.getElementById('enrollPin').value.trim();
@@ -102,7 +129,6 @@ document.getElementById('enrollForm').addEventListener('submit', async (e) => {
     }
 });
 
-// Dashboard
 async function loadDashboard() {
     const [codeData, configData, devicesData, logsData] = await Promise.all([
         api('/api/admin/code'),
@@ -111,24 +137,22 @@ async function loadDashboard() {
         api('/api/admin/logs'),
     ]);
 
-    // Daily code
     if (codeData.ok) {
         document.getElementById('dailyCode').textContent = codeData.code;
     }
 
-    // Config
     if (configData.ok) {
         const c = configData.config;
         document.getElementById('configDisplay').innerHTML = `
             <div class="config-item"><span>Max triggers/device/day</span><strong>${c.max_opens_per_device}</strong></div>
             <div class="config-item"><span>Access window</span><strong>${c.access_window_minutes} min</strong></div>
-            <div class="config-item"><span>Daily reset hour</span><strong>${c.daily_reset_hour}:00</strong></div>
-            <div class="config-item"><span>Code length</span><strong>${c.code_length} digits</strong></div>
+            <div class="config-item"><span>Daily reset</span><strong>${c.daily_reset_hour}:00</strong></div>
+            <div class="config-item"><span>Code digits</span><strong>${c.code_length}</strong></div>
             <div class="config-item"><span>Action</span><strong>${c.action_label} (${c.action_method})</strong></div>
+            <div class="config-item"><span>Admin bypass</span><strong>Enabled</strong></div>
         `;
     }
 
-    // Devices
     if (devicesData.ok) {
         const el = document.getElementById('deviceList');
         if (!devicesData.devices.length) {
@@ -139,7 +163,7 @@ async function loadDashboard() {
                     <div>
                         <strong>${esc(d.name)}</strong>
                         <span class="muted">${d.fingerprint.slice(0, 8)}...</span>
-                        <span class="muted">${new Date(d.enrolled_at).toLocaleDateString()}</span>
+                        <span class="bypass-badge">Trusted</span>
                     </div>
                     ${d.fingerprint !== fp ? `<button class="btn-danger btn-sm" onclick="removeDevice('${d.fingerprint}')">Remove</button>` : '<span class="muted">You</span>'}
                 </div>
@@ -147,7 +171,6 @@ async function loadDashboard() {
         }
     }
 
-    // Logs
     if (logsData.ok) {
         const el = document.getElementById('logList');
         if (!logsData.logs.length) {
@@ -168,7 +191,7 @@ async function loadDashboard() {
 }
 
 async function removeDevice(target) {
-    if (!confirm('Remove this device?')) return;
+    if (!confirm('Remove this device from trusted list?')) return;
     await api('/api/admin/devices/remove', {target});
     loadDashboard();
 }
@@ -176,8 +199,9 @@ async function removeDevice(target) {
 document.getElementById('copyCode').addEventListener('click', () => {
     const code = document.getElementById('dailyCode').textContent;
     navigator.clipboard.writeText(code).then(() => {
-        document.getElementById('copyCode').textContent = 'Copied!';
-        setTimeout(() => document.getElementById('copyCode').textContent = 'Copy', 1500);
+        const btn = document.getElementById('copyCode');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy Code', 1500);
     });
 });
 

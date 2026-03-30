@@ -5,19 +5,44 @@
 {% block content %}
 <div class="card">
     <div class="brand">
+        <div class="brand-shield">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z"
+                      stroke="url(#sg)" stroke-width="2" fill="rgba(56,189,248,0.05)"/>
+                <path d="M32 20v12m0 4v2" stroke="url(#sg)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="32" cy="40" r="2" fill="#38bdf8"/>
+                <defs><linearGradient id="sg" x1="8" y1="4" x2="56" y2="52">
+                    <stop stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/>
+                </linearGradient></defs>
+            </svg>
+        </div>
         <h1>AEGIS</h1>
         <p class="brand-full">Advanced Engine for Guardian Intelligence &amp; Security</p>
     </div>
-    <p class="subtitle">Enter your access code</p>
 
-    <form id="codeForm" autocomplete="off">
-        <div class="code-input-group">
-            <input type="text" id="codeInput" inputmode="numeric" pattern="[0-9]*"
-                   maxlength="8" placeholder="------" autofocus>
-        </div>
-        <button type="submit" id="submitBtn" disabled>{{ action_label }}</button>
-    </form>
+    <div class="scanner-line"></div>
 
+    <!-- Code entry (for non-bypass users) -->
+    <div id="codeSection">
+        <p class="subtitle">Enter your access code</p>
+        <form id="codeForm" autocomplete="off">
+            <div class="code-input-group">
+                <input type="text" id="codeInput" inputmode="numeric" pattern="[0-9]*"
+                       maxlength="8" placeholder="------" autofocus>
+            </div>
+            <button type="submit" id="submitBtn" disabled>{{ action_label }}</button>
+        </form>
+    </div>
+
+    <!-- Bypass mode (for registered admin devices) -->
+    <div id="bypassSection" class="hidden">
+        <p class="subtitle">Registered device detected <span class="bypass-badge">Trusted</span></p>
+        <button id="bypassBtn" class="btn-bypass" disabled>{{ action_label }}</button>
+    </div>
+
+    <div id="statusRing" class="status-ring hidden">
+        <span class="icon" id="statusIcon"></span>
+    </div>
     <div id="status" class="status hidden"></div>
     <div id="info" class="info hidden"></div>
 </div>
@@ -28,42 +53,65 @@
 const form = document.getElementById('codeForm');
 const input = document.getElementById('codeInput');
 const btn = document.getElementById('submitBtn');
+const bypassBtn = document.getElementById('bypassBtn');
+const codeSection = document.getElementById('codeSection');
+const bypassSection = document.getElementById('bypassSection');
 const status = document.getElementById('status');
+const statusRing = document.getElementById('statusRing');
+const statusIcon = document.getElementById('statusIcon');
 const info = document.getElementById('info');
 
 function onFingerprintReady() {
     btn.disabled = false;
+    bypassBtn.disabled = false;
+    checkBypass();
 }
+if (window.gkFingerprint) { btn.disabled = false; bypassBtn.disabled = false; checkBypass(); }
 
-if (window.gkFingerprint) btn.disabled = false;
-
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const code = input.value.trim();
-    if (!code || !window.gkFingerprint) return;
-
-    btn.disabled = true;
-    btn.textContent = 'Processing...';
-    status.className = 'status hidden';
-    info.className = 'info hidden';
-
+async function checkBypass() {
     try {
-        const resp = await fetch('/api/trigger', {
+        const resp = await fetch('/api/admin/check', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({code, fingerprint: window.gkFingerprint})
+            body: JSON.stringify({fingerprint: window.gkFingerprint})
+        });
+        const data = await resp.json();
+        if (data.enrolled) {
+            codeSection.classList.add('hidden');
+            bypassSection.classList.remove('hidden');
+        }
+    } catch(e) {}
+}
+
+async function triggerAction(code) {
+    status.className = 'status hidden';
+    info.className = 'info hidden';
+    statusRing.className = 'status-ring';
+    statusRing.classList.remove('hidden');
+    statusIcon.textContent = '';
+
+    try {
+        const body = {fingerprint: window.gkFingerprint};
+        if (code !== null) body.code = code;
+        const resp = await fetch(code !== null ? '/api/trigger' : '/api/bypass', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
         });
         const data = await resp.json();
 
         if (data.ok) {
-            status.textContent = 'Action triggered successfully';
+            statusRing.classList.add('success');
+            statusIcon.textContent = '\u2713';
+            status.textContent = 'Access granted';
             status.className = 'status success';
         } else {
+            statusRing.classList.add('error');
+            statusIcon.textContent = '\u2717';
             status.textContent = data.error || 'Access denied';
             status.className = 'status error';
         }
 
-        // Show remaining info
         const parts = [];
         if (data.remaining_attempts !== undefined) {
             parts.push(`${data.remaining_attempts} attempt${data.remaining_attempts !== 1 ? 's' : ''} remaining`);
@@ -77,14 +125,32 @@ form.addEventListener('submit', async (e) => {
             info.className = 'info';
         }
     } catch (err) {
+        statusRing.classList.add('error');
+        statusIcon.textContent = '!';
         status.textContent = 'Network error. Please try again.';
         status.className = 'status error';
     }
+}
 
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = input.value.trim();
+    if (!code || !window.gkFingerprint) return;
+    btn.disabled = true;
+    btn.textContent = 'Authenticating...';
+    await triggerAction(code);
     btn.disabled = false;
     btn.textContent = '{{ action_label }}';
     input.value = '';
     input.focus();
+});
+
+bypassBtn.addEventListener('click', async () => {
+    bypassBtn.disabled = true;
+    bypassBtn.textContent = 'Authenticating...';
+    await triggerAction(null);
+    bypassBtn.disabled = false;
+    bypassBtn.textContent = '{{ action_label }}';
 });
 </script>
 {% endblock %}
