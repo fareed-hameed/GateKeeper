@@ -103,7 +103,7 @@ async function triggerAction(code) {
     info.className = 'info hidden';
     statusRing.className = 'status-ring';
     statusRing.classList.remove('hidden');
-    statusIcon.textContent = '';
+    statusIcon.innerHTML = '';
 
     try {
         const body = {fingerprint: window.gkFingerprint};
@@ -117,12 +117,12 @@ async function triggerAction(code) {
 
         if (data.ok) {
             statusRing.classList.add('success');
-            statusIcon.textContent = '\u2713';
+            statusIcon.innerHTML = '<svg viewBox="0 0 40 40" width="40" height="40"><path d="M10 20l7 7 13-13" stroke="#34d399" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
             status.textContent = 'Access granted';
             status.className = 'status success';
         } else {
             statusRing.classList.add('error');
-            statusIcon.textContent = '\u2717';
+            statusIcon.innerHTML = '<svg viewBox="0 0 40 40" width="40" height="40"><path d="M12 12l16 16M28 12l-16 16" stroke="#f87171" stroke-width="4.5" stroke-linecap="round" fill="none"/></svg>';
             status.textContent = data.error || 'Access denied';
             status.className = 'status error';
         }
@@ -141,7 +141,7 @@ async function triggerAction(code) {
         }
     } catch (err) {
         statusRing.classList.add('error');
-        statusIcon.textContent = '!';
+        statusIcon.innerHTML = '<svg viewBox="0 0 40 40" width="40" height="40"><path d="M20 10v14" stroke="#f87171" stroke-width="4.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="30" r="2.5" fill="#f87171"/></svg>';
         status.textContent = 'Network error. Please try again.';
         status.className = 'status error';
     }
