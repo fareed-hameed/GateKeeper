@@ -112,9 +112,9 @@ body.admin-body {
 
 /* --- Status Indicator --- */
 .status-ring {
-    width: 80px;
-    height: 80px;
-    margin: 1rem auto;
+    width: 90px;
+    height: 90px;
+    margin: 1.25rem auto;
     border-radius: 50%;
     border: 3px solid rgba(56, 189, 248, 0.2);
     display: flex;
@@ -138,14 +138,34 @@ body.admin-body {
     to { transform: rotate(360deg); }
 }
 
-.status-ring.success { border-color: rgba(52, 211, 153, 0.4); }
-.status-ring.success::before { border-top-color: #34d399; }
-.status-ring.error { border-color: rgba(248, 113, 113, 0.3); }
+.status-ring.success {
+    border-color: #34d399;
+    background: rgba(52, 211, 153, 0.1);
+    box-shadow: 0 0 30px rgba(52, 211, 153, 0.25), inset 0 0 20px rgba(52, 211, 153, 0.08);
+    animation: resultPop 0.4s ease-out;
+}
+.status-ring.success::before { border-top-color: #34d399; animation: none; }
+
+.status-ring.error {
+    border-color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+    box-shadow: 0 0 30px rgba(248, 113, 113, 0.25), inset 0 0 20px rgba(248, 113, 113, 0.08);
+    animation: resultPop 0.4s ease-out;
+}
 .status-ring.error::before { border-top-color: #f87171; animation: none; }
 
-.status-ring .icon {
-    font-size: 1.8rem;
+@keyframes resultPop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    60%  { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
 }
+
+.status-ring .icon {
+    font-size: 2.2rem;
+    font-weight: 900;
+}
+.status-ring.success .icon { color: #34d399; text-shadow: 0 0 12px rgba(52, 211, 153, 0.5); }
+.status-ring.error .icon   { color: #f87171; text-shadow: 0 0 12px rgba(248, 113, 113, 0.5); }
 
 /* --- Inputs --- */
 h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .25rem; color: #f1f5f9; }
