@@ -22,14 +22,14 @@
         <p class="brand-full">Admin Enrollment</p>
     </div>
     <div class="scanner-line"></div>
-    <p class="subtitle">Enter the master PIN</p>
+    <p class="subtitle" data-t="enter_master_pin">Enter the master PIN</p>
     <form id="enrollForm" autocomplete="off">
-        <input type="password" id="enrollPin" placeholder="Master PIN" required>
+        <input type="password" id="enrollPin" placeholder="Master PIN" data-t="master_pin" required>
         <div id="enrollNameRow" class="hidden">
-            <input type="text" id="enrollName" placeholder="Device name (e.g. My Phone)">
+            <input type="text" id="enrollName" placeholder="Device name (e.g. My Phone)" data-t="device_name">
         </div>
-        <button type="submit" id="viewCodesBtn">View Codes</button>
-        <button type="button" id="showEnrollBtn" class="btn-secondary" style="margin-top:.5rem;">Enroll This Device</button>
+        <button type="submit" id="viewCodesBtn" data-t="view_codes">View Codes</button>
+        <button type="button" id="showEnrollBtn" class="btn-secondary" style="margin-top:.5rem;" data-t="enroll_device">Enroll This Device</button>
     </form>
     <div id="enrollStatus" class="status hidden"></div>
 </div>
@@ -52,29 +52,29 @@
     </div>
 
     <section class="section">
-        <h2>Today's Access Code</h2>
+        <h2 data-t="todays_code">Today's Access Code</h2>
         <div id="dailyCode" class="daily-code">------</div>
-        <button id="copyCode" class="btn-secondary">Copy Code</button>
+        <button id="copyCode" class="btn-secondary" data-t="copy_code">Copy Code</button>
     </section>
 
     <section class="section">
-        <h2>Upcoming Codes (7 Days)</h2>
+        <h2 data-t="upcoming_codes">Upcoming Codes (7 Days)</h2>
         <div id="upcomingCodes" class="config-grid"></div>
     </section>
 
     <section class="section">
-        <h2>System Configuration</h2>
+        <h2 data-t="sys_config">System Configuration</h2>
         <div id="configDisplay" class="config-grid"></div>
     </section>
 
     <section class="section">
-        <h2>Enrolled Devices</h2>
+        <h2 data-t="enrolled_devices">Enrolled Devices</h2>
         <div id="deviceList" class="device-list"></div>
     </section>
 
     <!-- Invite section: super_admin only -->
     <section class="section" id="inviteSection" style="display:none;">
-        <h2>Invite Links</h2>
+        <h2 data-t="invite_links">Invite Links</h2>
         <div style="margin-bottom:.75rem;">
             <input type="text" id="inviteLabel" placeholder="Label (e.g. Mom's Phone)" style="margin-bottom:.5rem;">
             <button id="createInviteBtn" class="btn-secondary">Generate Invite Link</button>
@@ -90,7 +90,7 @@
     </section>
 
     <section class="section">
-        <h2>Activity Log</h2>
+        <h2 data-t="activity_log">Activity Log</h2>
         <div id="logList" class="log-list"></div>
     </section>
 </div>
@@ -109,8 +109,20 @@
 
 {% block scripts %}
 <script>
+renderLangSelector('langBar', ['en','ar']);
+
 let fp = null;
 let myRole = null;
+
+function applyTranslations() {
+    document.querySelectorAll('[data-t]').forEach(el => {
+        const key = el.getAttribute('data-t');
+        if (el.tagName === 'INPUT') el.placeholder = t(key);
+        else el.textContent = t(key);
+    });
+    renderLangSelector('langBar', ['en','ar']);
+    if (myRole) loadDashboard();
+}
 
 function onFingerprintReady() {
     fp = window.gkFingerprint;

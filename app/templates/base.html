@@ -6,9 +6,11 @@
     <title>{% block title %}AEGIS{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
+    <script src="{{ url_for('static', filename='i18n.js') }}"></script>
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
     <canvas id="bg-canvas"></canvas>
+    <div id="langBar" class="lang-bar"></div>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
