@@ -142,8 +142,7 @@ form.addEventListener('submit', async (e) => {
     await triggerAction(code);
     btn.disabled = false;
     btn.textContent = '{{ action_label }}';
-    input.value = '';
-    input.focus();
+    input.blur();
 });
 
 bypassBtn.addEventListener('click', async () => {
