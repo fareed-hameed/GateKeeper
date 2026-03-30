@@ -6,12 +6,18 @@ body {
     background: #050a18;
     color: #c8d6e5;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     overflow-x: hidden;
     overflow-y: auto;
     position: relative;
+}
+
+/* Admin page has long content — align top so it scrolls */
+body.admin-body {
+    align-items: flex-start;
     padding: 2rem 0;
 }
 
@@ -375,6 +381,11 @@ button:disabled::after { display: none; }
     border: 1px solid rgba(52, 211, 153, 0.3);
     color: #34d399;
     margin-left: .5rem;
+}
+
+.today-highlight {
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    background: rgba(56, 189, 248, 0.05);
 }
 
 /* --- Responsive --- */

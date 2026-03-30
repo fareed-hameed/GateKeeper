@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}AEGIS — Enroll{% endblock %}
+
+{% block bodyclass %}admin-body{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="brand">
+        <div class="brand-shield">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 4L8 16v16c0 14.4 10.24 27.84 24 32 13.76-4.16 24-17.6 24-32V16L32 4z"
+                      stroke="url(#sge)" stroke-width="2" fill="rgba(56,189,248,0.05)"/>
+                <path d="M24 32h16M32 24v16" stroke="url(#sge)" stroke-width="3" stroke-linecap="round"/>
+                <defs><linearGradient id="sge" x1="8" y1="4" x2="56" y2="52">
+                    <stop stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/>
+                </linearGradient></defs>
+            </svg>
+        </div>
+        <h1>AEGIS</h1>
+        <p class="brand-full">Device Enrollment</p>
+    </div>
+    <div class="scanner-line"></div>
+
+    <div id="enrollContent">
+        <p class="subtitle" id="inviteLabel">Validating invite...</p>
+        <form id="enrollForm" class="hidden" autocomplete="off">
+            <input type="text" id="deviceName" placeholder="Your name or device name" required>
+            <button type="submit">Register Device</button>
+        </form>
+    </div>
+
+    <div id="enrollDone" class="hidden">
+        <div class="status success">Device registered successfully. You can now use the access code or bypass on the main page.</div>
+        <a href="/" style="display:block;margin-top:1rem;text-align:center;color:#38bdf8;">Go to AEGIS</a>
+    </div>
+
+    <div id="enrollError" class="status error hidden"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOKEN = '{{ token }}';
+
+function onFingerprintReady() { checkInvite(); }
+if (window.gkFingerprint) checkInvite();
+
+async function checkInvite() {
+    const resp = await fetch('/api/enroll/check', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint})
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+        document.getElementById('inviteLabel').textContent = `You've been invited to join AEGIS`;
+        document.getElementById('enrollForm').classList.remove('hidden');
+    } else {
+        document.getElementById('inviteLabel').classList.add('hidden');
+        const err = document.getElementById('enrollError');
+        err.textContent = data.error || 'Invalid invite';
+        err.classList.remove('hidden');
+    }
+}
+
+document.getElementById('enrollForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('deviceName').value.trim();
+
+    const resp = await fetch('/api/enroll/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint, name})
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+        document.getElementById('enrollContent').classList.add('hidden');
+        document.getElementById('enrollDone').classList.remove('hidden');
+    } else {
+        const err = document.getElementById('enrollError');
+        err.textContent = data.error || 'Enrollment failed';
+        err.classList.remove('hidden');
+    }
+});
+</script>
+{% endblock %}

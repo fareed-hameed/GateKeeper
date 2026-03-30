@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, render_template, current_app
 
-from .auth import get_daily_code, check_rate_limit
+from .auth import get_daily_code, get_upcoming_codes, check_rate_limit
 from .action import trigger_action
 from . import db
 
@@ -18,6 +18,11 @@ def index():
 @bp.route("/admin")
 def admin_page():
     return render_template("admin.html")
+
+
+@bp.route("/enroll/<token>")
+def enroll_page(token):
+    return render_template("enroll.html", token=token)
 
 
 # ---------- API: Trigger ----------
@@ -59,12 +64,9 @@ def api_trigger():
     )
 
     db.log_access(
-        fingerprint,
-        code_valid=True,
-        action_triggered=result["success"],
+        fingerprint, code_valid=True, action_triggered=result["success"],
     )
 
-    # Re-fetch stats after logging this trigger
     updated_stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
     _, _, updated_info = check_rate_limit(
         updated_stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
@@ -92,21 +94,42 @@ def api_bypass():
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Device not registered"}), 403
 
+    # Enrolled devices still have rate limits
+    stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
+    allowed, reason, info = check_rate_limit(
+        stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
+    )
+
+    if not allowed:
+        db.log_access(fingerprint, code_valid=True, blocked_reason=reason)
+        messages = {
+            "limit_exceeded": "Daily limit reached",
+            "window_expired": "Access window has expired",
+        }
+        return jsonify({
+            "ok": False,
+            "error": messages.get(reason, "Access denied"),
+            **info,
+        }), 429
+
     result = trigger_action(
         cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
     )
 
     db.log_access(
-        fingerprint,
-        code_valid=True,
-        action_triggered=result["success"],
-        blocked_reason=None,
+        fingerprint, code_valid=True, action_triggered=result["success"],
+    )
+
+    updated_stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
+    _, _, updated_info = check_rate_limit(
+        updated_stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
     )
 
     return jsonify({
         "ok": result["success"],
         "action_response": result["response"],
         "error": result["error"],
+        **updated_info,
     })
 
 
@@ -118,7 +141,8 @@ def api_admin_check():
     fingerprint = (data.get("fingerprint") or "").strip()
     if not fingerprint:
         return jsonify({"enrolled": False}), 400
-    return jsonify({"enrolled": db.is_admin_device(fingerprint)})
+    role = db.get_device_role(fingerprint)
+    return jsonify({"enrolled": role is not None, "role": role})
 
 
 @bp.route("/api/admin/enroll", methods=["POST"])
@@ -134,7 +158,7 @@ def api_admin_enroll():
     if pin != cfg["master_pin"]:
         return jsonify({"ok": False, "error": "Invalid PIN"}), 403
 
-    db.enroll_admin_device(fingerprint, name)
+    db.enroll_admin_device(fingerprint, name, role="super_admin")
     return jsonify({"ok": True})
 
 
@@ -144,7 +168,8 @@ def api_admin_devices():
     fingerprint = (data.get("fingerprint") or "").strip()
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Not authorized"}), 403
-    return jsonify({"ok": True, "devices": db.list_admin_devices()})
+    role = db.get_device_role(fingerprint)
+    return jsonify({"ok": True, "devices": db.list_admin_devices(), "caller_role": role})
 
 
 @bp.route("/api/admin/devices/remove", methods=["POST"])
@@ -153,8 +178,8 @@ def api_admin_remove_device():
     fingerprint = (data.get("fingerprint") or "").strip()
     target = (data.get("target") or "").strip()
 
-    if not db.is_admin_device(fingerprint):
-        return jsonify({"ok": False, "error": "Not authorized"}), 403
+    if db.get_device_role(fingerprint) != "super_admin":
+        return jsonify({"ok": False, "error": "Only super admins can remove devices"}), 403
     if fingerprint == target:
         return jsonify({"ok": False, "error": "Cannot remove yourself"}), 400
 
@@ -170,7 +195,8 @@ def api_admin_code():
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Not authorized"}), 403
     code = get_daily_code(cfg["code_secret"], cfg["code_length"])
-    return jsonify({"ok": True, "code": code})
+    upcoming = get_upcoming_codes(cfg["code_secret"], cfg["code_length"], days=7)
+    return jsonify({"ok": True, "code": code, "upcoming": upcoming})
 
 
 @bp.route("/api/admin/logs", methods=["POST"])
@@ -200,6 +226,85 @@ def api_admin_config():
             "action_method": cfg["action_method"],
         },
     })
+
+
+# ---------- API: Invite Tokens ----------
+
+@bp.route("/api/admin/invites", methods=["POST"])
+def api_admin_invites():
+    data = request.get_json(silent=True) or {}
+    fingerprint = (data.get("fingerprint") or "").strip()
+    if db.get_device_role(fingerprint) != "super_admin":
+        return jsonify({"ok": False, "error": "Only super admins can manage invites"}), 403
+    return jsonify({"ok": True, "invites": db.list_invite_tokens()})
+
+
+@bp.route("/api/admin/invites/create", methods=["POST"])
+def api_admin_create_invite():
+    data = request.get_json(silent=True) or {}
+    fingerprint = (data.get("fingerprint") or "").strip()
+    label = (data.get("label") or "").strip() or "Invite"
+    max_uses = data.get("max_uses", 1)
+    expires_hours = data.get("expires_hours", 72)
+
+    if db.get_device_role(fingerprint) != "super_admin":
+        return jsonify({"ok": False, "error": "Only super admins can create invites"}), 403
+
+    token = db.create_invite_token(label, fingerprint, max_uses, expires_hours)
+    return jsonify({"ok": True, "token": token})
+
+
+@bp.route("/api/admin/invites/revoke", methods=["POST"])
+def api_admin_revoke_invite():
+    data = request.get_json(silent=True) or {}
+    fingerprint = (data.get("fingerprint") or "").strip()
+    token = (data.get("token") or "").strip()
+
+    if db.get_device_role(fingerprint) != "super_admin":
+        return jsonify({"ok": False, "error": "Only super admins can revoke invites"}), 403
+
+    db.revoke_invite_token(token)
+    return jsonify({"ok": True})
+
+
+# ---------- API: Self-Enroll via Invite ----------
+
+@bp.route("/api/enroll/check", methods=["POST"])
+def api_enroll_check():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    fingerprint = (data.get("fingerprint") or "").strip()
+
+    if db.is_admin_device(fingerprint):
+        return jsonify({"ok": False, "error": "Device already enrolled"})
+
+    invite = db.validate_invite_token(token)
+    if not invite:
+        return jsonify({"ok": False, "error": "Invalid or expired invite link"})
+
+    return jsonify({"ok": True, "label": invite["label"]})
+
+
+@bp.route("/api/enroll/submit", methods=["POST"])
+def api_enroll_submit():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    fingerprint = (data.get("fingerprint") or "").strip()
+    name = (data.get("name") or "").strip() or "Invited Device"
+
+    if not fingerprint:
+        return jsonify({"ok": False, "error": "Device identification required"}), 400
+
+    if db.is_admin_device(fingerprint):
+        return jsonify({"ok": False, "error": "Device already enrolled"}), 400
+
+    invite = db.validate_invite_token(token)
+    if not invite:
+        return jsonify({"ok": False, "error": "Invalid or expired invite link"}), 403
+
+    db.enroll_admin_device(fingerprint, name, role="admin")
+    db.use_invite_token(token)
+    return jsonify({"ok": True})
 
 
 # ---------- Health ----------

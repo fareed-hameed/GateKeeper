@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
     <canvas id="bg-canvas"></canvas>
     <div class="container">
         {% block content %}{% endblock %}

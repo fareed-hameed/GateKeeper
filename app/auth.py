@@ -3,11 +3,24 @@ import hmac
 from datetime import date, datetime, timedelta
 
 
-def get_daily_code(secret: str, length: int = 6) -> str:
-    """Generate a deterministic daily code from a secret and today's date."""
-    today = date.today().isoformat()
-    h = hmac.new(secret.encode(), today.encode(), hashlib.sha256).hexdigest()
+def get_daily_code(secret: str, length: int = 6, for_date: date | None = None) -> str:
+    """Generate a deterministic daily code from a secret and a date."""
+    target = (for_date or date.today()).isoformat()
+    h = hmac.new(secret.encode(), target.encode(), hashlib.sha256).hexdigest()
     return str(int(h[:8], 16) % (10**length)).zfill(length)
+
+
+def get_upcoming_codes(secret: str, length: int = 6, days: int = 7) -> list[dict]:
+    """Generate codes for today and the next N-1 days."""
+    today = date.today()
+    return [
+        {
+            "date": (today + timedelta(days=i)).isoformat(),
+            "day": (today + timedelta(days=i)).strftime("%a"),
+            "code": get_daily_code(secret, length, today + timedelta(days=i)),
+        }
+        for i in range(days)
+    ]
 
 
 def check_rate_limit(
