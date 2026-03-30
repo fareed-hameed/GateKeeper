@@ -1,0 +1,16 @@
+services:
+  gatekeeper:
+    build: .
+    container_name: gatekeeper
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - gatekeeper-data:/app/data
+    environment:
+      - GATEKEEPER_CONFIG=/app/config.yaml
+      - GATEKEEPER_DB=/app/data/gatekeeper.db
+
+volumes:
+  gatekeeper-data:

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GateKeeper{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+    <script>
+        // Initialize FingerprintJS and store the visitor ID globally
+        window.gkFingerprint = null;
+        FingerprintJS.load().then(fp => fp.get()).then(result => {
+            window.gkFingerprint = result.visitorId;
+            if (typeof onFingerprintReady === 'function') onFingerprintReady();
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,22 @@
+name: Deploy GateKeeper
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /docker/gatekeeper
+            git pull origin main
+            docker compose up -d --build
+            sleep 3
+            curl -sf http://localhost:5000/health || echo "Health check failed"

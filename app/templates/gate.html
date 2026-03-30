@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}GateKeeper{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>GateKeeper</h1>
+    <p class="subtitle">Enter your access code</p>
+
+    <form id="codeForm" autocomplete="off">
+        <div class="code-input-group">
+            <input type="text" id="codeInput" inputmode="numeric" pattern="[0-9]*"
+                   maxlength="8" placeholder="------" autofocus>
+        </div>
+        <button type="submit" id="submitBtn" disabled>{{ action_label }}</button>
+    </form>
+
+    <div id="status" class="status hidden"></div>
+    <div id="info" class="info hidden"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('codeForm');
+const input = document.getElementById('codeInput');
+const btn = document.getElementById('submitBtn');
+const status = document.getElementById('status');
+const info = document.getElementById('info');
+
+function onFingerprintReady() {
+    btn.disabled = false;
+}
+
+if (window.gkFingerprint) btn.disabled = false;
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = input.value.trim();
+    if (!code || !window.gkFingerprint) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    status.className = 'status hidden';
+    info.className = 'info hidden';
+
+    try {
+        const resp = await fetch('/api/trigger', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code, fingerprint: window.gkFingerprint})
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+            status.textContent = 'Action triggered successfully';
+            status.className = 'status success';
+        } else {
+            status.textContent = data.error || 'Access denied';
+            status.className = 'status error';
+        }
+
+        // Show remaining info
+        const parts = [];
+        if (data.remaining_attempts !== undefined) {
+            parts.push(`${data.remaining_attempts} attempt${data.remaining_attempts !== 1 ? 's' : ''} remaining`);
+        }
+        if (data.window_seconds_left !== undefined && data.window_seconds_left !== null) {
+            const mins = Math.ceil(data.window_seconds_left / 60);
+            if (mins > 0) parts.push(`${mins} min window remaining`);
+        }
+        if (parts.length) {
+            info.textContent = parts.join(' \u00b7 ');
+            info.className = 'info';
+        }
+    } catch (err) {
+        status.textContent = 'Network error. Please try again.';
+        status.className = 'status error';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '{{ action_label }}';
+    input.value = '';
+    input.focus();
+});
+</script>
+{% endblock %}

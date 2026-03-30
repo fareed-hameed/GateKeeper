@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}GateKeeper Admin{% endblock %}
+
+{% block content %}
+<!-- Enrollment Screen (shown if device not enrolled) -->
+<div id="enrollScreen" class="card hidden">
+    <h1>Admin Enrollment</h1>
+    <p class="subtitle">Enter the master PIN to register this device</p>
+    <form id="enrollForm" autocomplete="off">
+        <input type="password" id="enrollPin" placeholder="Master PIN" required>
+        <input type="text" id="enrollName" placeholder="Device name (e.g. My Phone)" required>
+        <button type="submit">Enroll Device</button>
+    </form>
+    <div id="enrollStatus" class="status hidden"></div>
+</div>
+
+<!-- Admin Dashboard (shown if device is enrolled) -->
+<div id="dashboard" class="card hidden">
+    <h1>Admin Dashboard</h1>
+
+    <section class="section">
+        <h2>Today's Code</h2>
+        <div id="dailyCode" class="daily-code">------</div>
+        <button id="copyCode" class="btn-secondary">Copy</button>
+    </section>
+
+    <section class="section">
+        <h2>Configuration</h2>
+        <div id="configDisplay" class="config-grid"></div>
+    </section>
+
+    <section class="section">
+        <h2>Enrolled Devices</h2>
+        <div id="deviceList" class="device-list"></div>
+    </section>
+
+    <section class="section">
+        <h2>Recent Activity</h2>
+        <div id="logList" class="log-list"></div>
+    </section>
+</div>
+
+<!-- Loading -->
+<div id="loading" class="card">
+    <p>Identifying device...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let fp = null;
+
+function onFingerprintReady() {
+    fp = window.gkFingerprint;
+    checkEnrollment();
+}
+if (window.gkFingerprint) { fp = window.gkFingerprint; checkEnrollment(); }
+
+async function api(url, body = {}) {
+    body.fingerprint = fp;
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+    return r.json();
+}
+
+async function checkEnrollment() {
+    const data = await api('/api/admin/check');
+    document.getElementById('loading').classList.add('hidden');
+    if (data.enrolled) {
+        document.getElementById('dashboard').classList.remove('hidden');
+        loadDashboard();
+    } else {
+        document.getElementById('enrollScreen').classList.remove('hidden');
+    }
+}
+
+// Enrollment
+document.getElementById('enrollForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pin = document.getElementById('enrollPin').value.trim();
+    const name = document.getElementById('enrollName').value.trim();
+    const st = document.getElementById('enrollStatus');
+
+    const data = await api('/api/admin/enroll', {pin, name});
+    if (data.ok) {
+        document.getElementById('enrollScreen').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        loadDashboard();
+    } else {
+        st.textContent = data.error || 'Enrollment failed';
+        st.className = 'status error';
+    }
+});
+
+// Dashboard
+async function loadDashboard() {
+    const [codeData, configData, devicesData, logsData] = await Promise.all([
+        api('/api/admin/code'),
+        api('/api/admin/config'),
+        api('/api/admin/devices'),
+        api('/api/admin/logs'),
+    ]);
+
+    // Daily code
+    if (codeData.ok) {
+        document.getElementById('dailyCode').textContent = codeData.code;
+    }
+
+    // Config
+    if (configData.ok) {
+        const c = configData.config;
+        document.getElementById('configDisplay').innerHTML = `
+            <div class="config-item"><span>Max triggers/device/day</span><strong>${c.max_opens_per_device}</strong></div>
+            <div class="config-item"><span>Access window</span><strong>${c.access_window_minutes} min</strong></div>
+            <div class="config-item"><span>Daily reset hour</span><strong>${c.daily_reset_hour}:00</strong></div>
+            <div class="config-item"><span>Code length</span><strong>${c.code_length} digits</strong></div>
+            <div class="config-item"><span>Action</span><strong>${c.action_label} (${c.action_method})</strong></div>
+        `;
+    }
+
+    // Devices
+    if (devicesData.ok) {
+        const el = document.getElementById('deviceList');
+        if (!devicesData.devices.length) {
+            el.innerHTML = '<p class="muted">No devices enrolled</p>';
+        } else {
+            el.innerHTML = devicesData.devices.map(d => `
+                <div class="device-item">
+                    <div>
+                        <strong>${esc(d.name)}</strong>
+                        <span class="muted">${d.fingerprint.slice(0, 8)}...</span>
+                        <span class="muted">${new Date(d.enrolled_at).toLocaleDateString()}</span>
+                    </div>
+                    ${d.fingerprint !== fp ? `<button class="btn-danger btn-sm" onclick="removeDevice('${d.fingerprint}')">Remove</button>` : '<span class="muted">You</span>'}
+                </div>
+            `).join('');
+        }
+    }
+
+    // Logs
+    if (logsData.ok) {
+        const el = document.getElementById('logList');
+        if (!logsData.logs.length) {
+            el.innerHTML = '<p class="muted">No recent activity</p>';
+        } else {
+            el.innerHTML = `<table class="log-table">
+                <thead><tr><th>Time</th><th>Device</th><th>Result</th></tr></thead>
+                <tbody>${logsData.logs.map(l => `
+                    <tr class="${l.action_triggered ? 'row-success' : 'row-fail'}">
+                        <td>${new Date(l.attempted_at).toLocaleString()}</td>
+                        <td>${l.fingerprint.slice(0, 8)}...</td>
+                        <td>${l.action_triggered ? 'Triggered' : (l.blocked_reason || 'Failed')}</td>
+                    </tr>
+                `).join('')}</tbody>
+            </table>`;
+        }
+    }
+}
+
+async function removeDevice(target) {
+    if (!confirm('Remove this device?')) return;
+    await api('/api/admin/devices/remove', {target});
+    loadDashboard();
+}
+
+document.getElementById('copyCode').addEventListener('click', () => {
+    const code = document.getElementById('dailyCode').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        document.getElementById('copyCode').textContent = 'Copied!';
+        setTimeout(() => document.getElementById('copyCode').textContent = 'Copy', 1500);
+    });
+});
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}
