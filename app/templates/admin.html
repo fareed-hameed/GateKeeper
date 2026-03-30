@@ -189,8 +189,7 @@ async function loadDashboard() {
         document.getElementById('configDisplay').innerHTML = `
             <div class="config-item"><span>Max triggers/device/day</span><strong>${c.max_opens_per_device}</strong></div>
             <div class="config-item"><span>Access window</span><strong>${c.access_window_minutes} min</strong></div>
-            <div class="config-item"><span>Daily reset</span><strong>${c.daily_reset_hour}:00 GMT+${c.timezone_offset_hours}</strong></div>
-            <div class="config-item"><span>Timezone</span><strong>GMT+${c.timezone_offset_hours}</strong></div>
+            <div class="config-item"><span>Daily reset</span><strong>${String(c.daily_reset_hour).padStart(2,'0')}:00</strong></div>
             <div class="config-item"><span>Code digits</span><strong>${c.code_length}</strong></div>
             <div class="config-item"><span>Action</span><strong>${c.action_label} (${c.action_method})</strong></div>
         `;
