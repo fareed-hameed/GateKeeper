@@ -1,18 +1,31 @@
 import hashlib
 import hmac
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+# Configurable timezone offset — mirrors db module
+_TZ_OFFSET_HOURS = 3
+
+
+def set_tz_offset(hours: int) -> None:
+    global _TZ_OFFSET_HOURS
+    _TZ_OFFSET_HOURS = hours
+
+
+def _today_local() -> date:
+    tz = timezone(timedelta(hours=_TZ_OFFSET_HOURS))
+    return datetime.now(tz).date()
 
 
 def get_daily_code(secret: str, length: int = 6, for_date: date | None = None) -> str:
     """Generate a deterministic daily code from a secret and a date."""
-    target = (for_date or date.today()).isoformat()
+    target = (for_date or _today_local()).isoformat()
     h = hmac.new(secret.encode(), target.encode(), hashlib.sha256).hexdigest()
     return str(int(h[:8], 16) % (10**length)).zfill(length)
 
 
 def get_upcoming_codes(secret: str, length: int = 6, days: int = 7) -> list[dict]:
     """Generate codes for today and the next N-1 days."""
-    today = date.today()
+    today = _today_local()
     return [
         {
             "date": (today + timedelta(days=i)).isoformat(),
@@ -42,7 +55,8 @@ def check_rate_limit(
         if isinstance(first_success, str):
             first_success = datetime.fromisoformat(first_success)
         window_end = first_success + timedelta(minutes=window_minutes)
-        now = datetime.utcnow()
+        tz = timezone(timedelta(hours=_TZ_OFFSET_HOURS))
+        now = datetime.now(tz).replace(tzinfo=None)
         window_remaining = max(0, int((window_end - now).total_seconds()))
 
         if now > window_end:

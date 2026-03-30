@@ -1,10 +1,24 @@
 import sqlite3
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 DB_PATH = os.environ.get("GATEKEEPER_DB", "gatekeeper.db")
+
+# Configurable timezone offset — set via set_tz_offset() at app startup
+_TZ_OFFSET_HOURS = 3  # default GMT+3
+
+
+def set_tz_offset(hours: int) -> None:
+    global _TZ_OFFSET_HOURS
+    _TZ_OFFSET_HOURS = hours
+
+
+def now_local() -> datetime:
+    """Current time in the configured timezone."""
+    tz = timezone(timedelta(hours=_TZ_OFFSET_HOURS))
+    return datetime.now(tz).replace(tzinfo=None)
 
 
 def get_db() -> sqlite3.Connection:
@@ -187,9 +201,9 @@ def log_access(
     conn = get_db()
     conn.execute(
         """INSERT INTO access_log
-           (fingerprint, code_valid, action_triggered, blocked_reason)
-           VALUES (?, ?, ?, ?)""",
-        (fingerprint, code_valid, action_triggered, blocked_reason),
+           (fingerprint, attempted_at, code_valid, action_triggered, blocked_reason)
+           VALUES (?, ?, ?, ?, ?)""",
+        (fingerprint, now_local().isoformat(), code_valid, action_triggered, blocked_reason),
     )
     conn.commit()
     conn.close()
@@ -198,8 +212,8 @@ def log_access(
 def get_device_stats(
     fingerprint: str, reset_hour: int = 0
 ) -> dict:
-    """Return today's stats for a device since the last reset hour."""
-    now = datetime.utcnow()
+    """Return today's stats for a device since the last reset hour (local time)."""
+    now = now_local()
     reset_today = now.replace(hour=reset_hour, minute=0, second=0, microsecond=0)
     if now < reset_today:
         reset_today -= timedelta(days=1)
@@ -232,7 +246,7 @@ def get_device_stats(
 
 
 def get_recent_logs(hours: int = 24, limit: int = 100) -> list[dict]:
-    since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+    since = (now_local() - timedelta(hours=hours)).isoformat()
     conn = get_db()
     rows = conn.execute(
         """SELECT fingerprint, attempted_at, code_valid,

@@ -224,6 +224,7 @@ def api_admin_config():
             "code_length": cfg["code_length"],
             "action_label": cfg["action_label"],
             "action_method": cfg["action_method"],
+            "timezone_offset_hours": cfg.get("timezone_offset_hours", 3),
         },
     })
 

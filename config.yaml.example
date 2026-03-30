@@ -19,7 +19,8 @@ code_length: 6              # Number of digits in the daily code
 # Rate Limiting
 max_opens_per_device: 3     # Max successful triggers per device per day
 access_window_minutes: 15   # Minutes from first successful trigger
-daily_reset_hour: 0         # Hour (0-23) when daily counters reset
+daily_reset_hour: 3         # Hour (0-23) when daily counters reset (in your timezone)
+timezone_offset_hours: 3    # GMT offset (e.g. 3 for GMT+3, -5 for EST)
 
 # Admin
 # One-time PIN required to enroll a new admin device.
