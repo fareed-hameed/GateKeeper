@@ -22,11 +22,14 @@
         <p class="brand-full">Admin Enrollment</p>
     </div>
     <div class="scanner-line"></div>
-    <p class="subtitle">Enter the master PIN to register this device</p>
+    <p class="subtitle">Enter the master PIN</p>
     <form id="enrollForm" autocomplete="off">
         <input type="password" id="enrollPin" placeholder="Master PIN" required>
-        <input type="text" id="enrollName" placeholder="Device name (e.g. My Phone)" required>
-        <button type="submit">Enroll Device</button>
+        <div id="enrollNameRow" class="hidden">
+            <input type="text" id="enrollName" placeholder="Device name (e.g. My Phone)">
+        </div>
+        <button type="submit" id="viewCodesBtn">View Codes</button>
+        <button type="button" id="showEnrollBtn" class="btn-secondary" style="margin-top:.5rem;">Enroll This Device</button>
     </form>
     <div id="enrollStatus" class="status hidden"></div>
 </div>
@@ -142,21 +145,46 @@ async function checkEnrollment() {
     }
 }
 
+let enrollMode = false;
+
+document.getElementById('showEnrollBtn').addEventListener('click', () => {
+    enrollMode = true;
+    document.getElementById('enrollNameRow').classList.remove('hidden');
+    document.getElementById('enrollName').required = true;
+    document.getElementById('viewCodesBtn').textContent = 'Enroll & View';
+    document.getElementById('showEnrollBtn').classList.add('hidden');
+});
+
 document.getElementById('enrollForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const pin = document.getElementById('enrollPin').value.trim();
-    const name = document.getElementById('enrollName').value.trim();
     const st = document.getElementById('enrollStatus');
 
-    const data = await api('/api/admin/enroll', {pin, name});
-    if (data.ok) {
-        myRole = 'super_admin';
-        document.getElementById('enrollScreen').classList.add('hidden');
-        document.getElementById('dashboard').classList.remove('hidden');
-        loadDashboard();
+    if (enrollMode) {
+        const name = document.getElementById('enrollName').value.trim();
+        if (!name) return;
+        const data = await api('/api/admin/enroll', {pin, name});
+        if (data.ok) {
+            myRole = 'super_admin';
+            document.getElementById('enrollScreen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            loadDashboard();
+        } else {
+            st.textContent = data.error || 'Enrollment failed';
+            st.className = 'status error';
+        }
     } else {
-        st.textContent = data.error || 'Enrollment failed';
-        st.className = 'status error';
+        // View codes only — verify PIN without enrolling
+        const data = await api('/api/admin/peek', {pin});
+        if (data.ok) {
+            myRole = 'peek';
+            document.getElementById('enrollScreen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            loadDashboardPeek(data);
+        } else {
+            st.textContent = data.error || 'Invalid PIN';
+            st.className = 'status error';
+        }
     }
 });
 
@@ -247,6 +275,24 @@ async function loadDashboard() {
             </table>`;
         }
     }
+}
+
+function loadDashboardPeek(data) {
+    document.getElementById('dashTitle').textContent = 'Access Codes';
+    // Show codes only — hide everything else
+    document.getElementById('dailyCode').textContent = data.code;
+    if (data.upcoming) {
+        document.getElementById('upcomingCodes').innerHTML = data.upcoming.map((c, i) => `
+            <div class="config-item ${i === 0 ? 'today-highlight' : ''}">
+                <span>${c.day} ${c.date}${i === 0 ? ' (Today)' : ''}</span>
+                <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+            </div>
+        `).join('');
+    }
+    // Hide non-code sections
+    document.querySelectorAll('#dashboard .section').forEach((s, i) => {
+        if (i > 1) s.style.display = 'none'; // keep code + upcoming, hide rest
+    });
 }
 
 async function loadInvites() {

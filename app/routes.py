@@ -187,6 +187,21 @@ def api_admin_remove_device():
     return jsonify({"ok": True})
 
 
+@bp.route("/api/admin/peek", methods=["POST"])
+def api_admin_peek():
+    """View codes with master PIN only — no enrollment required."""
+    cfg = current_app.config["GK"]
+    data = request.get_json(silent=True) or {}
+    pin = (data.get("pin") or "").strip()
+
+    if pin != cfg["master_pin"]:
+        return jsonify({"ok": False, "error": "Invalid PIN"}), 403
+
+    code = get_daily_code(cfg["code_secret"], cfg["code_length"])
+    upcoming = get_upcoming_codes(cfg["code_secret"], cfg["code_length"], days=7)
+    return jsonify({"ok": True, "code": code, "upcoming": upcoming})
+
+
 @bp.route("/api/admin/code", methods=["POST"])
 def api_admin_code():
     cfg = current_app.config["GK"]
