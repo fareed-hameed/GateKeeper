@@ -217,25 +217,25 @@ input:focus {
 
 .clear-btn {
     position: absolute;
-    right: 8px;
+    right: 10px;
     top: 50%;
-    transform: translateY(-60%);
-    width: 28px;
-    height: 28px;
+    transform: translateY(-55%);
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: none;
-    border-radius: 50%;
-    background: rgba(248, 113, 113, 0.2);
-    color: #f87171;
-    font-size: 1.1rem;
-    font-weight: 700;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(56, 189, 248, 0.4);
+    font-size: 0;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
+    transition: color 0.2s;
 }
-.clear-btn:hover { background: rgba(248, 113, 113, 0.35); box-shadow: none; }
+.clear-btn svg { width: 16px; height: 16px; }
+.clear-btn:hover { color: rgba(56, 189, 248, 0.7); background: transparent; box-shadow: none; }
 .clear-btn::after { display: none; }
 
 .code-input-group input:focus {

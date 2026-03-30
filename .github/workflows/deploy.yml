@@ -1,8 +1,9 @@
 name: Deploy GateKeeper
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:  # Manual trigger only until secrets are configured
+  # push:
+  #   branches: [main]
 
 jobs:
   deploy:
