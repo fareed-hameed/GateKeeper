@@ -1,4 +1,6 @@
-# GateKeeper
+# AEGIS
+
+**Advanced Engine for Guardian Intelligence & Security**
 
 Daily-code access control for any URL-triggered action. Wrap any API endpoint, IoT trigger, or webhook behind a rotating daily code with device-based rate limiting.
 

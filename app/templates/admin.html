@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}GateKeeper Admin{% endblock %}
+{% block title %}AEGIS Admin{% endblock %}
 
 {% block content %}
 <!-- Enrollment Screen (shown if device not enrolled) -->
 <div id="enrollScreen" class="card hidden">
-    <h1>Admin Enrollment</h1>
+    <div class="brand">
+        <h1>AEGIS</h1>
+        <p class="brand-full">Admin Enrollment</p>
+    </div>
     <p class="subtitle">Enter the master PIN to register this device</p>
     <form id="enrollForm" autocomplete="off">
         <input type="password" id="enrollPin" placeholder="Master PIN" required>
@@ -17,7 +20,10 @@
 
 <!-- Admin Dashboard (shown if device is enrolled) -->
 <div id="dashboard" class="card hidden">
-    <h1>Admin Dashboard</h1>
+    <div class="brand">
+        <h1>AEGIS</h1>
+        <p class="brand-full">Admin Dashboard</p>
+    </div>
 
     <section class="section">
         <h2>Today's Code</h2>
