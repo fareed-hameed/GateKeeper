@@ -7,10 +7,12 @@ body {
     color: #c8d6e5;
     min-height: 100vh;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     position: relative;
+    padding: 2rem 0;
 }
 
 #bg-canvas {
