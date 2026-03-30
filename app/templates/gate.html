@@ -27,8 +27,11 @@
         <p class="subtitle">Enter your access code</p>
         <form id="codeForm" autocomplete="off">
             <div class="code-input-group">
-                <input type="text" id="codeInput" inputmode="numeric" pattern="[0-9]*"
-                       maxlength="8" placeholder="------" autofocus>
+                <div style="position:relative;">
+                    <input type="text" id="codeInput" inputmode="numeric" pattern="[0-9]*"
+                           maxlength="8" placeholder="------" autofocus>
+                    <button type="button" id="clearBtn" class="clear-btn hidden" aria-label="Clear">&times;</button>
+                </div>
             </div>
             <button type="submit" id="submitBtn" disabled>{{ action_label }}</button>
         </form>
@@ -61,6 +64,17 @@ const status = document.getElementById('status');
 const statusRing = document.getElementById('statusRing');
 const statusIcon = document.getElementById('statusIcon');
 const info = document.getElementById('info');
+
+const clearBtn = document.getElementById('clearBtn');
+
+input.addEventListener('input', () => {
+    clearBtn.classList.toggle('hidden', input.value.length === 0);
+});
+clearBtn.addEventListener('click', () => {
+    input.value = '';
+    clearBtn.classList.add('hidden');
+    input.focus();
+});
 
 function onFingerprintReady() {
     btn.disabled = false;

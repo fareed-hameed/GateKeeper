@@ -214,6 +214,29 @@ input:focus {
     border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
+.clear-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-60%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(248, 113, 113, 0.2);
+    color: #f87171;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.clear-btn:hover { background: rgba(248, 113, 113, 0.35); box-shadow: none; }
+.clear-btn::after { display: none; }
+
 .code-input-group input:focus {
     border-color: rgba(129, 140, 248, 0.5);
     box-shadow: 0 0 24px rgba(129, 140, 248, 0.15);
