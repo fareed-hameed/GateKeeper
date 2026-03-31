@@ -141,6 +141,10 @@ async function triggerAction(code) {
         if (data.remaining_attempts !== undefined) {
             parts.push(t('attempts_remaining', {n: data.remaining_attempts, s: data.remaining_attempts !== 1 ? 's' : ''}));
         }
+        if (data.cooldown_seconds) {
+            _lastCooldown = data.cooldown_seconds;
+            if (data.ok) parts.push(`${data.cooldown_seconds}s cooldown`);
+        }
         if (data.window_seconds_left !== undefined && data.window_seconds_left !== null) {
             const mins = Math.ceil(data.window_seconds_left / 60);
             if (mins > 0) parts.push(t('window_remaining', {n: mins}));
@@ -169,12 +173,33 @@ form.addEventListener('submit', async (e) => {
     input.blur();
 });
 
+let _lastCooldown = 30;
+
 bypassBtn.addEventListener('click', async () => {
     bypassBtn.disabled = true;
     bypassBtn.textContent = t('authenticating');
     await triggerAction(null);
-    bypassBtn.disabled = false;
-    bypassBtn.textContent = t('trigger');
+
+    const statusEl = document.getElementById('status');
+    const isOk = statusEl && statusEl.classList.contains('success');
+    if (isOk) {
+        let cd = _lastCooldown;
+        const tick = () => {
+            if (cd > 0) {
+                bypassBtn.textContent = `${cd}s`;
+                bypassBtn.disabled = true;
+                cd--;
+                setTimeout(tick, 1000);
+            } else {
+                bypassBtn.disabled = false;
+                bypassBtn.textContent = t('trigger');
+            }
+        };
+        tick();
+    } else {
+        bypassBtn.disabled = false;
+        bypassBtn.textContent = t('trigger');
+    }
 });
 </script>
 {% endblock %}

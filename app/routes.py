@@ -1,3 +1,4 @@
+import threading
 from collections import defaultdict
 from datetime import datetime
 
@@ -13,6 +14,9 @@ bp = Blueprint("gatekeeper", __name__)
 _pin_attempts = defaultdict(list)  # ip -> [timestamp, ...]
 PIN_MAX_ATTEMPTS = 5
 PIN_WINDOW_SECONDS = 900  # 15 minutes
+
+# Action lock — only one action call can be in-flight at a time
+_action_lock = threading.Lock()
 
 
 def _check_pin_rate(ip: str) -> bool:
@@ -79,9 +83,16 @@ def api_trigger():
             **info,
         }), 429
 
-    result = trigger_action(
-        cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
-    )
+    # Action lock — drop concurrent requests
+    if not _action_lock.acquire(blocking=False):
+        return jsonify({"ok": False, "error": "System busy. Try again shortly."}), 503
+
+    try:
+        result = trigger_action(
+            cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
+        )
+    finally:
+        _action_lock.release()
 
     db.log_access(
         fingerprint, code_valid=True, action_triggered=result["success"],
@@ -99,7 +110,7 @@ def api_trigger():
     })
 
 
-# ---------- API: Bypass (registered devices) ----------
+# ---------- API: Bypass (trusted registered devices) ----------
 
 @bp.route("/api/bypass", methods=["POST"])
 def api_bypass():
@@ -113,40 +124,64 @@ def api_bypass():
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Device not registered"}), 403
 
-    stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
-    allowed, reason, info = check_rate_limit(
-        stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
-    )
+    trusted_max = cfg.get("trusted_max_opens", 50)
+    cooldown = cfg.get("trusted_cooldown_seconds", 30)
 
-    if not allowed:
-        db.log_access(fingerprint, code_valid=True, blocked_reason=reason)
-        messages = {
-            "limit_exceeded": "Daily limit reached",
-            "window_expired": "Access window has expired",
-        }
+    stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
+    count = stats["successful_count"]
+    last_success = stats["last_success_at"]
+
+    # Daily limit for trusted devices
+    if count >= trusted_max:
+        remaining = 0
+        db.log_access(fingerprint, code_valid=True, blocked_reason="limit_exceeded")
         return jsonify({
             "ok": False,
-            "error": messages.get(reason, "Access denied"),
-            **info,
+            "error": "Daily limit reached",
+            "remaining_attempts": remaining,
         }), 429
 
-    result = trigger_action(
-        cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
-    )
+    # Cooldown between requests
+    if last_success:
+        if isinstance(last_success, str):
+            last_success_dt = datetime.fromisoformat(last_success)
+        else:
+            last_success_dt = last_success
+        from .db import now_local
+        elapsed = (now_local() - last_success_dt).total_seconds()
+        wait = cooldown - int(elapsed)
+        if wait > 0:
+            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown")
+            return jsonify({
+                "ok": False,
+                "error": f"Please wait {wait} seconds",
+                "cooldown_seconds": wait,
+                "remaining_attempts": trusted_max - count,
+            }), 429
+
+    # Action lock — drop concurrent requests (DDoS protection)
+    if not _action_lock.acquire(blocking=False):
+        return jsonify({
+            "ok": False,
+            "error": "System busy. Try again shortly.",
+        }), 503
+
+    try:
+        result = trigger_action(
+            cfg["action_url"], cfg["action_method"], cfg["action_timeout_seconds"]
+        )
+    finally:
+        _action_lock.release()
 
     db.log_access(
         fingerprint, code_valid=True, action_triggered=result["success"],
     )
 
-    updated_stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
-    _, _, updated_info = check_rate_limit(
-        updated_stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
-    )
-
     return jsonify({
         "ok": result["success"],
         "error": result["error"],
-        **updated_info,
+        "remaining_attempts": trusted_max - count - (1 if result["success"] else 0),
+        "cooldown_seconds": cooldown,
     })
 
 

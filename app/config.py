@@ -13,6 +13,8 @@ _DEFAULT = {
     "access_window_minutes": 15,
     "daily_reset_hour": 3,
     "timezone_offset_hours": 3,
+    "trusted_max_opens": 50,
+    "trusted_cooldown_seconds": 30,
     "master_pin": "change-me",
     "port": 5000,
     "debug": False,

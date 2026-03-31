@@ -255,18 +255,20 @@ def get_device_stats(
     successful_count = row[0]
 
     row = conn.execute(
-        """SELECT MIN(attempted_at) FROM access_log
+        """SELECT MIN(attempted_at), MAX(attempted_at) FROM access_log
            WHERE fingerprint = ?
              AND action_triggered = 1
              AND attempted_at >= ?""",
         (fingerprint, reset_today.isoformat()),
     ).fetchone()
     first_success = row[0]
+    last_success = row[1]
 
     conn.close()
     return {
         "successful_count": successful_count,
         "first_success_at": first_success,
+        "last_success_at": last_success,
     }
 
 
