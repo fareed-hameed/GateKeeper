@@ -216,9 +216,9 @@ async function loadDashboard() {
 
         // Upcoming codes
         if (codeData.upcoming) {
-            document.getElementById('upcomingCodes').innerHTML = codeData.upcoming.map((c, i) => `
-                <div class="config-item ${i === 0 ? 'today-highlight' : ''}">
-                    <span>${c.day} ${c.date}${i === 0 ? ' (Today)' : ''}</span>
+            document.getElementById('upcomingCodes').innerHTML = codeData.upcoming.map(c => `
+                <div class="config-item">
+                    <span>${c.day} ${c.date} ${c.time}</span>
                     <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
                 </div>
             `).join('');
@@ -296,9 +296,9 @@ function loadDashboardPeek(data) {
     // Show codes only — hide everything else
     document.getElementById('dailyCode').textContent = data.code;
     if (data.upcoming) {
-        document.getElementById('upcomingCodes').innerHTML = data.upcoming.map((c, i) => `
-            <div class="config-item ${i === 0 ? 'today-highlight' : ''}">
-                <span>${c.day} ${c.date}${i === 0 ? ' (Today)' : ''}</span>
+        document.getElementById('upcomingCodes').innerHTML = data.upcoming.map(c => `
+            <div class="config-item">
+                <span>${c.day} ${c.date} ${c.time}</span>
                 <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
             </div>
         `).join('');

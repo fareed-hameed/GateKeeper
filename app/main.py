@@ -4,7 +4,7 @@ from flask import Flask
 
 from .config import load_config
 from .db import init_db, set_tz_offset as db_set_tz, purge_old_logs
-from .auth import set_tz_offset as auth_set_tz
+from .auth import set_tz_offset as auth_set_tz, set_reset_hour as auth_set_reset
 from .routes import bp
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ def create_app(config_path: str | None = None) -> Flask:
     tz_offset = cfg.get("timezone_offset_hours", 3)
     db_set_tz(tz_offset)
     auth_set_tz(tz_offset)
+    auth_set_reset(cfg.get("daily_reset_hour", 3))
 
     init_db()
 
