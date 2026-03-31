@@ -22,9 +22,12 @@ access_window_minutes: 15   # Minutes from first successful trigger
 daily_reset_hour: 3         # Hour (0-23) when daily counters reset (in your timezone)
 timezone_offset_hours: 3    # GMT offset (e.g. 3 for GMT+3, -5 for EST)
 
+# Cooldown
+cooldown_seconds: 15        # Min seconds between triggers (code users)
+
 # Trusted Device Rules (enrolled/bypass devices)
 trusted_max_opens: 50       # Max triggers per trusted device per day
-trusted_cooldown_seconds: 30 # Min seconds between bypass triggers
+trusted_cooldown_seconds: 15 # Min seconds between bypass triggers
 
 # Admin
 # One-time PIN required to enroll a new admin device.

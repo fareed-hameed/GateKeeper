@@ -168,9 +168,20 @@ form.addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.textContent = t('authenticating');
     await triggerAction(code);
-    btn.disabled = false;
-    btn.textContent = t('trigger');
     input.blur();
+
+    const isOk = status.classList.contains('success');
+    if (isOk) {
+        let cd = _lastCooldown;
+        const tick = () => {
+            if (cd > 0) { btn.textContent = `${cd}s`; btn.disabled = true; cd--; setTimeout(tick, 1000); }
+            else { btn.disabled = false; btn.textContent = t('trigger'); }
+        };
+        tick();
+    } else {
+        btn.disabled = false;
+        btn.textContent = t('trigger');
+    }
 });
 
 let _lastCooldown = 30;

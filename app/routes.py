@@ -66,7 +66,24 @@ def api_trigger():
         db.log_access(fingerprint, code_valid=False, blocked_reason="invalid_code")
         return jsonify({"ok": False, "error": "Invalid code"}), 403
 
+    cooldown = cfg.get("cooldown_seconds", 15)
     stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
+
+    # Cooldown between triggers
+    if stats["last_success_at"]:
+        last_dt = stats["last_success_at"]
+        if isinstance(last_dt, str):
+            last_dt = datetime.fromisoformat(last_dt)
+        elapsed = (db.now_local() - last_dt).total_seconds()
+        wait = cooldown - int(elapsed)
+        if wait > 0:
+            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown")
+            return jsonify({
+                "ok": False,
+                "error": f"Please wait {wait} seconds",
+                "cooldown_seconds": wait,
+            }), 429
+
     allowed, reason, info = check_rate_limit(
         stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
     )
@@ -106,6 +123,7 @@ def api_trigger():
     return jsonify({
         "ok": result["success"],
         "error": result["error"],
+        "cooldown_seconds": cooldown,
         **updated_info,
     })
 
