@@ -113,6 +113,7 @@ renderLangSelector('langBar', ['en','ar']);
 
 let fp = null;
 let myRole = null;
+let _peekData = null;
 
 function applyTranslations() {
     document.querySelectorAll('[data-t]').forEach(el => {
@@ -121,7 +122,8 @@ function applyTranslations() {
         else el.textContent = t(key);
     });
     renderLangSelector('langBar', ['en','ar']);
-    if (myRole) loadDashboard();
+    if (myRole && myRole !== 'peek') loadDashboard();
+    if (myRole === 'peek' && _peekData) loadDashboardPeek(_peekData);
 }
 
 function onFingerprintReady() {
@@ -190,6 +192,7 @@ document.getElementById('enrollForm').addEventListener('submit', async (e) => {
         const data = await api('/api/admin/peek', {pin});
         if (data.ok) {
             myRole = 'peek';
+            _peekData = data;
             document.getElementById('enrollScreen').classList.add('hidden');
             document.getElementById('dashboard').classList.remove('hidden');
             loadDashboardPeek(data);

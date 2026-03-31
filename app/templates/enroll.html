@@ -40,7 +40,7 @@
 
 {% block scripts %}
 <script>
-const TOKEN = '{{ token }}';
+const TOKEN = {{ token | tojson }};
 
 function onFingerprintReady() { checkInvite(); }
 if (window.gkFingerprint) checkInvite();

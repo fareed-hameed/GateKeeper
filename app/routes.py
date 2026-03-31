@@ -1,3 +1,6 @@
+from collections import defaultdict
+from datetime import datetime
+
 from flask import Blueprint, request, jsonify, render_template, current_app
 
 from .auth import get_daily_code, get_upcoming_codes, check_rate_limit
@@ -5,6 +8,23 @@ from .action import trigger_action
 from . import db
 
 bp = Blueprint("gatekeeper", __name__)
+
+# Simple in-memory rate limiter for PIN attempts (per IP)
+_pin_attempts = defaultdict(list)  # ip -> [timestamp, ...]
+PIN_MAX_ATTEMPTS = 5
+PIN_WINDOW_SECONDS = 900  # 15 minutes
+
+
+def _check_pin_rate(ip: str) -> bool:
+    """Returns True if allowed, False if rate limited."""
+    now = datetime.utcnow()
+    window = [t for t in _pin_attempts[ip] if (now - t).total_seconds() < PIN_WINDOW_SECONDS]
+    _pin_attempts[ip] = window
+    return len(window) < PIN_MAX_ATTEMPTS
+
+
+def _record_pin_attempt(ip: str) -> None:
+    _pin_attempts[ip].append(datetime.utcnow())
 
 
 # ---------- Pages ----------
@@ -74,7 +94,6 @@ def api_trigger():
 
     return jsonify({
         "ok": result["success"],
-        "action_response": result["response"],
         "error": result["error"],
         **updated_info,
     })
@@ -94,7 +113,6 @@ def api_bypass():
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Device not registered"}), 403
 
-    # Enrolled devices still have rate limits
     stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
     allowed, reason, info = check_rate_limit(
         stats, cfg["max_opens_per_device"], cfg["access_window_minutes"]
@@ -127,7 +145,6 @@ def api_bypass():
 
     return jsonify({
         "ok": result["success"],
-        "action_response": result["response"],
         "error": result["error"],
         **updated_info,
     })
@@ -140,9 +157,9 @@ def api_admin_check():
     data = request.get_json(silent=True) or {}
     fingerprint = (data.get("fingerprint") or "").strip()
     if not fingerprint:
-        return jsonify({"enrolled": False}), 400
+        return jsonify({"ok": False, "enrolled": False}), 400
     role = db.get_device_role(fingerprint)
-    return jsonify({"enrolled": role is not None, "role": role})
+    return jsonify({"ok": True, "enrolled": role is not None, "role": role})
 
 
 @bp.route("/api/admin/enroll", methods=["POST"])
@@ -155,11 +172,37 @@ def api_admin_enroll():
 
     if not fingerprint:
         return jsonify({"ok": False, "error": "Device identification required"}), 400
+
+    ip = request.remote_addr or "unknown"
+    if not _check_pin_rate(ip):
+        return jsonify({"ok": False, "error": "Too many attempts. Try again later."}), 429
+
     if pin != cfg["master_pin"]:
+        _record_pin_attempt(ip)
         return jsonify({"ok": False, "error": "Invalid PIN"}), 403
 
     db.enroll_admin_device(fingerprint, name, role="super_admin")
     return jsonify({"ok": True})
+
+
+@bp.route("/api/admin/peek", methods=["POST"])
+def api_admin_peek():
+    """View codes with master PIN only — no enrollment required."""
+    cfg = current_app.config["GK"]
+    data = request.get_json(silent=True) or {}
+    pin = (data.get("pin") or "").strip()
+
+    ip = request.remote_addr or "unknown"
+    if not _check_pin_rate(ip):
+        return jsonify({"ok": False, "error": "Too many attempts. Try again later."}), 429
+
+    if pin != cfg["master_pin"]:
+        _record_pin_attempt(ip)
+        return jsonify({"ok": False, "error": "Invalid PIN"}), 403
+
+    code = get_daily_code(cfg["code_secret"], cfg["code_length"])
+    upcoming = get_upcoming_codes(cfg["code_secret"], cfg["code_length"], days=7)
+    return jsonify({"ok": True, "code": code, "upcoming": upcoming})
 
 
 @bp.route("/api/admin/devices", methods=["POST"])
@@ -185,21 +228,6 @@ def api_admin_remove_device():
 
     db.remove_admin_device(target)
     return jsonify({"ok": True})
-
-
-@bp.route("/api/admin/peek", methods=["POST"])
-def api_admin_peek():
-    """View codes with master PIN only — no enrollment required."""
-    cfg = current_app.config["GK"]
-    data = request.get_json(silent=True) or {}
-    pin = (data.get("pin") or "").strip()
-
-    if pin != cfg["master_pin"]:
-        return jsonify({"ok": False, "error": "Invalid PIN"}), 403
-
-    code = get_daily_code(cfg["code_secret"], cfg["code_length"])
-    upcoming = get_upcoming_codes(cfg["code_secret"], cfg["code_length"], days=7)
-    return jsonify({"ok": True, "code": code, "upcoming": upcoming})
 
 
 @bp.route("/api/admin/code", methods=["POST"])
@@ -239,7 +267,6 @@ def api_admin_config():
             "code_length": cfg["code_length"],
             "action_label": cfg["action_label"],
             "action_method": cfg["action_method"],
-            "timezone_offset_hours": cfg.get("timezone_offset_hours", 3),
         },
     })
 
@@ -260,8 +287,8 @@ def api_admin_create_invite():
     data = request.get_json(silent=True) or {}
     fingerprint = (data.get("fingerprint") or "").strip()
     label = (data.get("label") or "").strip() or "Invite"
-    max_uses = data.get("max_uses", 1)
-    expires_hours = data.get("expires_hours", 72)
+    max_uses = min(max(int(data.get("max_uses", 1)), 1), 50)
+    expires_hours = min(max(int(data.get("expires_hours", 72)), 1), 720)
 
     if db.get_device_role(fingerprint) != "super_admin":
         return jsonify({"ok": False, "error": "Only super admins can create invites"}), 403
@@ -314,12 +341,11 @@ def api_enroll_submit():
     if db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Device already enrolled"}), 400
 
-    invite = db.validate_invite_token(token)
-    if not invite:
+    # Atomic claim — prevents TOCTOU race with concurrent requests
+    if not db.claim_invite_token(token):
         return jsonify({"ok": False, "error": "Invalid or expired invite link"}), 403
 
     db.enroll_admin_device(fingerprint, name, role="admin")
-    db.use_invite_token(token)
     return jsonify({"ok": True})
 
 

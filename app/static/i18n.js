@@ -279,11 +279,32 @@ function renderLangSelector(containerId, allowedLangs) {
     const el = document.getElementById(containerId);
     if (!el) return;
     const langs = allowedLangs || Object.keys(LANGS);
-    el.innerHTML = langs.map(l =>
-        `<button class="lang-btn ${l === currentLang ? 'lang-active' : ''}"
-                 onclick="setLang('${l}')" title="${LANGS[l].name}">${LANGS[l].label}</button>`
-    ).join('');
+
+    // Globe button + dropdown
+    const currentName = LANGS[currentLang]?.name || 'English';
+    el.innerHTML = `
+        <button class="lang-globe" onclick="this.parentElement.classList.toggle('lang-open')" title="Language">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/>
+            </svg>
+        </button>
+        <div class="lang-dropdown">
+            ${langs.map(l => `
+                <button class="lang-option ${l === currentLang ? 'lang-selected' : ''}"
+                        onclick="setLang('${l}'); this.closest('.lang-bar').classList.remove('lang-open');">
+                    <span class="lang-option-label">${LANGS[l].label}</span>
+                    <span class="lang-option-name">${LANGS[l].name}</span>
+                </button>
+            `).join('')}
+        </div>`;
 }
+
+// Close dropdown on outside click
+document.addEventListener('click', (e) => {
+    const bar = document.getElementById('langBar');
+    if (bar && !bar.contains(e.target)) bar.classList.remove('lang-open');
+});
 
 // Apply direction on load
 document.documentElement.dir = LANGS[currentLang]?.dir || 'ltr';

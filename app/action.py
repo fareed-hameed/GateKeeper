@@ -24,8 +24,8 @@ def trigger_action(url: str, method: str = "GET", timeout: int = 10) -> dict:
             "error": None,
         }
     except requests.Timeout:
-        return {"success": False, "response": None, "error": "Request timed out"}
+        return {"success": False, "status_code": None, "response": None, "error": "Action timed out"}
     except requests.ConnectionError:
-        return {"success": False, "response": None, "error": "Connection failed"}
-    except requests.RequestException as e:
-        return {"success": False, "response": None, "error": str(e)}
+        return {"success": False, "status_code": None, "response": None, "error": "Action unavailable"}
+    except requests.RequestException:
+        return {"success": False, "status_code": None, "response": None, "error": "Action failed"}

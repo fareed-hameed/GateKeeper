@@ -67,7 +67,7 @@ def init_db() -> None:
     try:
         conn.execute("SELECT role FROM admin_devices LIMIT 1")
     except sqlite3.OperationalError:
-        conn.execute("ALTER TABLE admin_devices ADD COLUMN role TEXT NOT NULL DEFAULT 'super_admin'")
+        conn.execute("ALTER TABLE admin_devices ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
         conn.commit()
     conn.close()
 
@@ -95,7 +95,9 @@ def get_device_role(fingerprint: str) -> str | None:
 def enroll_admin_device(fingerprint: str, name: str, role: str = "super_admin") -> None:
     conn = get_db()
     conn.execute(
-        "INSERT OR IGNORE INTO admin_devices (fingerprint, name, role) VALUES (?, ?, ?)",
+        """INSERT INTO admin_devices (fingerprint, name, role)
+           VALUES (?, ?, ?)
+           ON CONFLICT(fingerprint) DO UPDATE SET name=excluded.name, role=excluded.role""",
         (fingerprint, name, role),
     )
     conn.commit()
@@ -131,7 +133,7 @@ def create_invite_token(
     label: str, created_by: str, max_uses: int = 1, expires_hours: int = 72
 ) -> str:
     token = secrets.token_urlsafe(16)
-    expires_at = (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat()
+    expires_at = (now_local() + timedelta(hours=expires_hours)).isoformat()
     conn = get_db()
     conn.execute(
         """INSERT INTO invite_tokens (token, label, created_by, expires_at, max_uses)
@@ -143,7 +145,40 @@ def create_invite_token(
     return token
 
 
+def claim_invite_token(token: str) -> bool:
+    """Atomically validate and claim an invite token. Returns True if claimed."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM invite_tokens WHERE token = ? AND active = 1", (token,)
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            return False
+        row = dict(row)
+        now = now_local()
+        if row["expires_at"] and now > datetime.fromisoformat(row["expires_at"]):
+            conn.rollback()
+            return False
+        if row["used_count"] >= row["max_uses"]:
+            conn.rollback()
+            return False
+        conn.execute(
+            "UPDATE invite_tokens SET used_count = used_count + 1 WHERE token = ?",
+            (token,),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
 def validate_invite_token(token: str) -> dict | None:
+    """Read-only check — use claim_invite_token for actual redemption."""
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM invite_tokens WHERE token = ? AND active = 1", (token,)
@@ -152,7 +187,7 @@ def validate_invite_token(token: str) -> dict | None:
         conn.close()
         return None
     row = dict(row)
-    now = datetime.utcnow()
+    now = now_local()
     if row["expires_at"] and now > datetime.fromisoformat(row["expires_at"]):
         conn.close()
         return None
@@ -161,16 +196,6 @@ def validate_invite_token(token: str) -> dict | None:
         return None
     conn.close()
     return row
-
-
-def use_invite_token(token: str) -> None:
-    conn = get_db()
-    conn.execute(
-        "UPDATE invite_tokens SET used_count = used_count + 1 WHERE token = ?",
-        (token,),
-    )
-    conn.commit()
-    conn.close()
 
 
 def list_invite_tokens() -> list[dict]:
@@ -236,7 +261,7 @@ def get_device_stats(
              AND attempted_at >= ?""",
         (fingerprint, reset_today.isoformat()),
     ).fetchone()
-    first_success = row[0] if row else None
+    first_success = row[0]
 
     conn.close()
     return {
@@ -259,3 +284,15 @@ def get_recent_logs(hours: int = 24, limit: int = 100) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def purge_old_logs(retention_days: int = 30) -> int:
+    cutoff = (now_local() - timedelta(days=retention_days)).isoformat()
+    conn = get_db()
+    cursor = conn.execute(
+        "DELETE FROM access_log WHERE attempted_at < ?", (cutoff,)
+    )
+    count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return count
