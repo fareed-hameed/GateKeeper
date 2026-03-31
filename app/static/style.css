@@ -15,11 +15,7 @@ body {
     position: relative;
 }
 
-/* Admin page has long content — align top so it scrolls */
-body.admin-body {
-    align-items: flex-start;
-    padding: 2rem 0;
-}
+/* Container handles centering for both short and long content */
 
 #bg-canvas {
     position: fixed;
@@ -34,7 +30,8 @@ body.admin-body {
     z-index: 1;
     width: 100%;
     max-width: 500px;
-    padding: 1rem;
+    padding: 2rem 1rem;
+    margin: auto;
 }
 
 /* --- Glass Card --- */
