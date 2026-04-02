@@ -129,11 +129,20 @@
             draw();
         })();
 
-        // --- FingerprintJS ---
+        // --- FingerprintJS with localStorage persistence ---
         window.gkFingerprint = null;
-        FingerprintJS.load().then(fp => fp.get()).then(result => {
-            window.gkFingerprint = result.visitorId;
+        const STORAGE_KEY = 'aegis_device_id';
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            window.gkFingerprint = stored;
             if (typeof onFingerprintReady === 'function') onFingerprintReady();
+        }
+        FingerprintJS.load().then(fp => fp.get()).then(result => {
+            if (!stored) {
+                localStorage.setItem(STORAGE_KEY, result.visitorId);
+                window.gkFingerprint = result.visitorId;
+                if (typeof onFingerprintReady === 'function') onFingerprintReady();
+            }
         });
     </script>
     {% block scripts %}{% endblock %}
