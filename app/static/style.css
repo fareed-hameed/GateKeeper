@@ -290,6 +290,46 @@ button:disabled::after { display: none; }
     width: auto;
     padding: .25rem .75rem;
     font-size: .75rem;
+    margin-top: 0;
+}
+
+/* Upcoming code cards */
+.code-card {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .6rem .75rem;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(56, 189, 248, 0.06);
+    border-radius: 8px;
+}
+
+.code-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .8rem;
+}
+
+.code-card-header .code-date { color: #94a3b8; }
+
+.code-card-header .code-value {
+    font-family: 'Courier New', monospace;
+    letter-spacing: .1em;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.code-card-actions {
+    display: flex;
+    gap: .5rem;
+}
+
+.code-card-actions .btn-sm {
+    flex: 1;
+    text-align: center;
+    font-size: .7rem;
+    padding: .3rem .5rem;
 }
 
 /* --- Status Messages --- */
@@ -362,11 +402,14 @@ button:disabled::after { display: none; }
 .config-item {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: .5rem .75rem;
     background: rgba(15, 23, 42, 0.5);
     border: 1px solid rgba(56, 189, 248, 0.06);
     border-radius: 8px;
     font-size: .8rem;
+    gap: .5rem;
+    flex-wrap: wrap;
 }
 
 .device-item {

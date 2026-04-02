@@ -220,14 +220,25 @@ async function loadDashboard() {
         // Upcoming codes
         if (codeData.upcoming) {
             document.getElementById('upcomingCodes').innerHTML = codeData.upcoming.map(c => `
-                <div class="config-item">
-                    <span>${c.day} ${c.date} ${c.time}</span>
-                    <span style="display:flex;align-items:center;gap:.5rem;">
-                        <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+                <div class="code-card">
+                    <div class="code-card-header">
+                        <span class="code-date">${c.day} ${c.date} ${c.time}</span>
+                        <span class="code-value">${c.code}</span>
+                    </div>
+                    <div class="code-card-actions">
+                        <button class="btn-secondary btn-sm copy-code-btn" data-code="${c.code}">Copy Code</button>
                         <button class="btn-secondary btn-sm copy-link-btn" data-code="${c.code}">Copy Link</button>
-                    </span>
+                    </div>
                 </div>
             `).join('');
+            document.querySelectorAll('.copy-code-btn').forEach(b => {
+                b.addEventListener('click', () => {
+                    navigator.clipboard.writeText(b.dataset.code).then(() => {
+                        b.textContent = 'Copied!';
+                        setTimeout(() => b.textContent = 'Copy Code', 1500);
+                    });
+                });
+            });
             document.querySelectorAll('.copy-link-btn').forEach(b => {
                 b.addEventListener('click', () => copyCodeLink(b.dataset.code, b));
             });
@@ -306,14 +317,25 @@ function loadDashboardPeek(data) {
     document.getElementById('dailyCode').textContent = data.code;
     if (data.upcoming) {
         document.getElementById('upcomingCodes').innerHTML = data.upcoming.map(c => `
-            <div class="config-item">
-                <span>${c.day} ${c.date} ${c.time}</span>
-                <span style="display:flex;align-items:center;gap:.5rem;">
-                    <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+            <div class="code-card">
+                <div class="code-card-header">
+                    <span class="code-date">${c.day} ${c.date} ${c.time}</span>
+                    <span class="code-value">${c.code}</span>
+                </div>
+                <div class="code-card-actions">
+                    <button class="btn-secondary btn-sm copy-code-btn" data-code="${c.code}">Copy Code</button>
                     <button class="btn-secondary btn-sm copy-link-btn" data-code="${c.code}">Copy Link</button>
-                </span>
+                </div>
             </div>
         `).join('');
+        document.querySelectorAll('.copy-code-btn').forEach(b => {
+            b.addEventListener('click', () => {
+                navigator.clipboard.writeText(b.dataset.code).then(() => {
+                    b.textContent = 'Copied!';
+                    setTimeout(() => b.textContent = 'Copy Code', 1500);
+                });
+            });
+        });
         document.querySelectorAll('.copy-link-btn').forEach(b => {
             b.addEventListener('click', () => copyCodeLink(b.dataset.code, b));
         });
