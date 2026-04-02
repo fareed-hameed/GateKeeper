@@ -53,7 +53,10 @@
     <section class="section">
         <h2 data-t="todays_code">Today's Access Code</h2>
         <div id="dailyCode" class="daily-code">------</div>
-        <button id="copyCode" class="btn-secondary" data-t="copy_code">Copy Code</button>
+        <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;">
+            <button id="copyCode" class="btn-secondary" data-t="copy_code">Copy Code</button>
+            <button id="copyLink" class="btn-secondary">Copy Link</button>
+        </div>
     </section>
 
     <section class="section">
@@ -219,9 +222,15 @@ async function loadDashboard() {
             document.getElementById('upcomingCodes').innerHTML = codeData.upcoming.map(c => `
                 <div class="config-item">
                     <span>${c.day} ${c.date} ${c.time}</span>
-                    <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+                    <span style="display:flex;align-items:center;gap:.5rem;">
+                        <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+                        <button class="btn-secondary btn-sm copy-link-btn" data-code="${c.code}">Copy Link</button>
+                    </span>
                 </div>
             `).join('');
+            document.querySelectorAll('.copy-link-btn').forEach(b => {
+                b.addEventListener('click', () => copyCodeLink(b.dataset.code, b));
+            });
         }
     }
 
@@ -299,9 +308,15 @@ function loadDashboardPeek(data) {
         document.getElementById('upcomingCodes').innerHTML = data.upcoming.map(c => `
             <div class="config-item">
                 <span>${c.day} ${c.date} ${c.time}</span>
-                <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+                <span style="display:flex;align-items:center;gap:.5rem;">
+                    <strong style="font-family:monospace;letter-spacing:.1em;">${c.code}</strong>
+                    <button class="btn-secondary btn-sm copy-link-btn" data-code="${c.code}">Copy Link</button>
+                </span>
             </div>
         `).join('');
+        document.querySelectorAll('.copy-link-btn').forEach(b => {
+            b.addEventListener('click', () => copyCodeLink(b.dataset.code, b));
+        });
     }
     // Hide non-code sections
     document.querySelectorAll('#dashboard .section').forEach((s, i) => {
@@ -374,6 +389,20 @@ document.getElementById('copyCode').addEventListener('click', () => {
         btn.textContent = 'Copied!';
         setTimeout(() => btn.textContent = 'Copy Code', 1500);
     });
+});
+
+function copyCodeLink(code, btnEl) {
+    const link = `${location.origin}/?code=${code}`;
+    navigator.clipboard.writeText(link).then(() => {
+        const prev = btnEl.textContent;
+        btnEl.textContent = 'Copied!';
+        setTimeout(() => btnEl.textContent = prev, 1500);
+    });
+}
+
+document.getElementById('copyLink').addEventListener('click', () => {
+    const code = document.getElementById('dailyCode').textContent;
+    copyCodeLink(code, document.getElementById('copyLink'));
 });
 
 function esc(s) {

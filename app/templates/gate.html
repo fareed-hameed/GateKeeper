@@ -67,6 +67,13 @@ const statusIcon = document.getElementById('statusIcon');
 const info = document.getElementById('info');
 const clearBtn = document.getElementById('clearBtn');
 
+// Pre-fill code from URL query param (e.g. ?code=123456)
+const urlCode = new URLSearchParams(window.location.search).get('code');
+if (urlCode) {
+    input.value = urlCode.replace(/\D/g, '').slice(0, 8);
+    clearBtn.classList.toggle('hidden', input.value.length === 0);
+}
+
 input.addEventListener('input', () => {
     clearBtn.classList.toggle('hidden', input.value.length === 0);
 });
