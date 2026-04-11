@@ -72,7 +72,9 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE admin_devices ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
         conn.commit()
-    # Migrate: add signature columns (existing installs)
+    # Migrate: add signature columns (existing installs).
+    # Idempotent — a second worker racing on the same DB may see the column
+    # already added by the first, so we also swallow "duplicate column".
     for table, column in (
         ("admin_devices", "signature"),
         ("admin_devices", "last_signature"),
@@ -81,8 +83,12 @@ def init_db() -> None:
         try:
             conn.execute(f"SELECT {column} FROM {table} LIMIT 1")
         except sqlite3.OperationalError:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
-            conn.commit()
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+                conn.commit()
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc).lower():
+                    raise
     conn.close()
 
 
