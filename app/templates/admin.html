@@ -136,6 +136,7 @@ if (window.gkFingerprint) { fp = window.gkFingerprint; checkEnrollment(); }
 
 async function api(url, body = {}) {
     body.fingerprint = fp;
+    body.signature = window.gkSignature;
     const r = await fetch(url, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

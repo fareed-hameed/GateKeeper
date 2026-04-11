@@ -6,7 +6,9 @@
     <title>{% block title %}AEGIS{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
+    <script src="{{ url_for('static', filename='lib/thumbmark.umd.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/evercookie.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/aegis-identity.js') }}"></script>
     <script src="{{ url_for('static', filename='i18n.js') }}"></script>
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
@@ -129,21 +131,9 @@
             draw();
         })();
 
-        // --- FingerprintJS with localStorage persistence ---
-        window.gkFingerprint = null;
-        const STORAGE_KEY = 'aegis_device_id';
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            window.gkFingerprint = stored;
-            if (typeof onFingerprintReady === 'function') onFingerprintReady();
-        }
-        FingerprintJS.load().then(fp => fp.get()).then(result => {
-            if (!stored) {
-                localStorage.setItem(STORAGE_KEY, result.visitorId);
-                window.gkFingerprint = result.visitorId;
-                if (typeof onFingerprintReady === 'function') onFingerprintReady();
-            }
-        });
+        // Device identity is set up by aegis-identity.js (loaded in <head>).
+        // It exposes window.gkFingerprint, window.gkSignature, and calls
+        // onFingerprintReady() once the identity is resolved.
     </script>
     {% block scripts %}{% endblock %}
 </body>

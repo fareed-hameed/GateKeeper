@@ -57,13 +57,14 @@ def api_trigger():
     data = request.get_json(silent=True) or {}
     code = (data.get("code") or "").strip()
     fingerprint = (data.get("fingerprint") or "").strip()
+    signature = (data.get("signature") or "").strip() or None
 
     if not fingerprint:
         return jsonify({"ok": False, "error": "Device identification required"}), 400
 
     expected = get_daily_code(cfg["code_secret"], cfg["code_length"])
     if code != expected:
-        db.log_access(fingerprint, code_valid=False, blocked_reason="invalid_code")
+        db.log_access(fingerprint, code_valid=False, blocked_reason="invalid_code", signature=signature)
         return jsonify({"ok": False, "error": "Invalid code"}), 403
 
     cooldown = cfg.get("cooldown_seconds", 15)
@@ -77,7 +78,7 @@ def api_trigger():
         elapsed = (db.now_local() - last_dt).total_seconds()
         wait = cooldown - int(elapsed)
         if wait > 0:
-            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown")
+            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown", signature=signature)
             return jsonify({
                 "ok": False,
                 "error": f"Please wait {wait} seconds",
@@ -89,7 +90,7 @@ def api_trigger():
     )
 
     if not allowed:
-        db.log_access(fingerprint, code_valid=True, blocked_reason=reason)
+        db.log_access(fingerprint, code_valid=True, blocked_reason=reason, signature=signature)
         messages = {
             "limit_exceeded": "Daily limit reached",
             "window_expired": "Access window has expired",
@@ -112,7 +113,7 @@ def api_trigger():
         _action_lock.release()
 
     db.log_access(
-        fingerprint, code_valid=True, action_triggered=result["success"],
+        fingerprint, code_valid=True, action_triggered=result["success"], signature=signature,
     )
 
     updated_stats = db.get_device_stats(fingerprint, cfg["daily_reset_hour"])
@@ -135,12 +136,16 @@ def api_bypass():
     cfg = current_app.config["GK"]
     data = request.get_json(silent=True) or {}
     fingerprint = (data.get("fingerprint") or "").strip()
+    signature = (data.get("signature") or "").strip() or None
 
     if not fingerprint:
         return jsonify({"ok": False, "error": "Device identification required"}), 400
 
     if not db.is_admin_device(fingerprint):
         return jsonify({"ok": False, "error": "Device not registered"}), 403
+
+    # Record current signature for audit (soft check, never blocks).
+    db.update_device_signature(fingerprint, signature)
 
     trusted_max = cfg.get("trusted_max_opens", 50)
     cooldown = cfg.get("trusted_cooldown_seconds", 30)
@@ -152,7 +157,7 @@ def api_bypass():
     # Daily limit for trusted devices
     if count >= trusted_max:
         remaining = 0
-        db.log_access(fingerprint, code_valid=True, blocked_reason="limit_exceeded")
+        db.log_access(fingerprint, code_valid=True, blocked_reason="limit_exceeded", signature=signature)
         return jsonify({
             "ok": False,
             "error": "Daily limit reached",
@@ -169,7 +174,7 @@ def api_bypass():
         elapsed = (now_local() - last_success_dt).total_seconds()
         wait = cooldown - int(elapsed)
         if wait > 0:
-            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown")
+            db.log_access(fingerprint, code_valid=True, blocked_reason="cooldown", signature=signature)
             return jsonify({
                 "ok": False,
                 "error": f"Please wait {wait} seconds",
@@ -192,7 +197,7 @@ def api_bypass():
         _action_lock.release()
 
     db.log_access(
-        fingerprint, code_valid=True, action_triggered=result["success"],
+        fingerprint, code_valid=True, action_triggered=result["success"], signature=signature,
     )
 
     return jsonify({
@@ -220,6 +225,7 @@ def api_admin_enroll():
     cfg = current_app.config["GK"]
     data = request.get_json(silent=True) or {}
     fingerprint = (data.get("fingerprint") or "").strip()
+    signature = (data.get("signature") or "").strip() or None
     pin = (data.get("pin") or "").strip()
     name = (data.get("name") or "").strip() or "Admin Device"
 
@@ -234,7 +240,7 @@ def api_admin_enroll():
         _record_pin_attempt(ip)
         return jsonify({"ok": False, "error": "Invalid PIN"}), 403
 
-    db.enroll_admin_device(fingerprint, name, role="super_admin")
+    db.enroll_admin_device(fingerprint, name, role="super_admin", signature=signature)
     return jsonify({"ok": True})
 
 
@@ -386,6 +392,7 @@ def api_enroll_submit():
     data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()
     fingerprint = (data.get("fingerprint") or "").strip()
+    signature = (data.get("signature") or "").strip() or None
     name = (data.get("name") or "").strip() or "Invited Device"
 
     if not fingerprint:
@@ -398,7 +405,7 @@ def api_enroll_submit():
     if not db.claim_invite_token(token):
         return jsonify({"ok": False, "error": "Invalid or expired invite link"}), 403
 
-    db.enroll_admin_device(fingerprint, name, role="admin")
+    db.enroll_admin_device(fingerprint, name, role="admin", signature=signature)
     return jsonify({"ok": True})
 
 

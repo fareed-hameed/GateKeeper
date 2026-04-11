@@ -105,7 +105,7 @@ async function checkBypass() {
         const resp = await fetch('/api/admin/check', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({fingerprint: window.gkFingerprint})
+            body: JSON.stringify({fingerprint: window.gkFingerprint, signature: window.gkSignature})
         });
         const data = await resp.json();
         if (data.enrolled) {
@@ -123,7 +123,7 @@ async function triggerAction(code) {
     statusIcon.innerHTML = '';
 
     try {
-        const body = {fingerprint: window.gkFingerprint};
+        const body = {fingerprint: window.gkFingerprint, signature: window.gkSignature};
         if (code !== null) body.code = code;
         const resp = await fetch(code !== null ? '/api/trigger' : '/api/bypass', {
             method: 'POST',

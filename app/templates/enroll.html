@@ -48,7 +48,7 @@ async function checkInvite() {
     const resp = await fetch('/api/enroll/check', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint})
+        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint, signature: window.gkSignature})
     });
     const data = await resp.json();
 
@@ -70,7 +70,7 @@ document.getElementById('enrollForm').addEventListener('submit', async (e) => {
     const resp = await fetch('/api/enroll/submit', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint, name})
+        body: JSON.stringify({token: TOKEN, fingerprint: window.gkFingerprint, signature: window.gkSignature, name})
     });
     const data = await resp.json();
 

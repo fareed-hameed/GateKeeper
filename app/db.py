@@ -36,6 +36,8 @@ def init_db() -> None:
             fingerprint TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'admin',
+            signature TEXT,
+            last_signature TEXT,
             enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -45,7 +47,8 @@ def init_db() -> None:
             attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             code_valid BOOLEAN NOT NULL,
             action_triggered BOOLEAN DEFAULT 0,
-            blocked_reason TEXT
+            blocked_reason TEXT,
+            signature TEXT
         );
 
         CREATE TABLE IF NOT EXISTS invite_tokens (
@@ -69,6 +72,17 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE admin_devices ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
         conn.commit()
+    # Migrate: add signature columns (existing installs)
+    for table, column in (
+        ("admin_devices", "signature"),
+        ("admin_devices", "last_signature"),
+        ("access_log", "signature"),
+    ):
+        try:
+            conn.execute(f"SELECT {column} FROM {table} LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+            conn.commit()
     conn.close()
 
 
@@ -92,13 +106,34 @@ def get_device_role(fingerprint: str) -> str | None:
     return row["role"] if row else None
 
 
-def enroll_admin_device(fingerprint: str, name: str, role: str = "super_admin") -> None:
+def enroll_admin_device(
+    fingerprint: str,
+    name: str,
+    role: str = "super_admin",
+    signature: str | None = None,
+) -> None:
     conn = get_db()
     conn.execute(
-        """INSERT INTO admin_devices (fingerprint, name, role)
-           VALUES (?, ?, ?)
-           ON CONFLICT(fingerprint) DO UPDATE SET name=excluded.name, role=excluded.role""",
-        (fingerprint, name, role),
+        """INSERT INTO admin_devices (fingerprint, name, role, signature, last_signature)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(fingerprint) DO UPDATE SET
+               name=excluded.name,
+               role=excluded.role,
+               last_signature=excluded.last_signature""",
+        (fingerprint, name, role, signature, signature),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_device_signature(fingerprint: str, signature: str | None) -> None:
+    """Record the most recent thumbmark signature seen for this device (audit only)."""
+    if not signature:
+        return
+    conn = get_db()
+    conn.execute(
+        "UPDATE admin_devices SET last_signature = ? WHERE fingerprint = ?",
+        (signature, fingerprint),
     )
     conn.commit()
     conn.close()
@@ -222,13 +257,21 @@ def log_access(
     code_valid: bool,
     action_triggered: bool = False,
     blocked_reason: str | None = None,
+    signature: str | None = None,
 ) -> None:
     conn = get_db()
     conn.execute(
         """INSERT INTO access_log
-           (fingerprint, attempted_at, code_valid, action_triggered, blocked_reason)
-           VALUES (?, ?, ?, ?, ?)""",
-        (fingerprint, now_local().isoformat(), code_valid, action_triggered, blocked_reason),
+           (fingerprint, attempted_at, code_valid, action_triggered, blocked_reason, signature)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            fingerprint,
+            now_local().isoformat(),
+            code_valid,
+            action_triggered,
+            blocked_reason,
+            signature,
+        ),
     )
     conn.commit()
     conn.close()
